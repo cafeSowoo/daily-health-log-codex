@@ -322,6 +322,12 @@
     .summary-label { color: var(--muted); font-size: 12px; font-weight: 800; }
     .summary-value { margin: 8px 0 2px; font-size: 24px; font-weight: 800; }
 
+    .today-date-label {
+      margin: 0 0 10px;
+      color: #57463c;
+      font-size: 13px;
+      font-weight: 850;
+    }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -377,6 +383,7 @@
 
     .record-list { display: grid; gap: 10px; }
     .selected-date-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
+    .records-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
     .record-card {
       width: 100%;
       border: 1px solid var(--line);
@@ -1459,6 +1466,7 @@
       });
 
       document.querySelector("#homeTodayCards").innerHTML = `
+        <p class="today-date-label">${formatDateKo(todayIso)}</p>
         <div class="today-metrics">
           ${metrics.map(m => `
             <button class="metric-card ${m.empty ? "is-empty" : "has-record"}" type="button" data-quick-type="${m.key}" aria-label="${m.label} ${m.empty ? "입력" : "수정"}">
@@ -1544,7 +1552,7 @@
       root.innerHTML = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => `
         <section>
           <h4 class="group-title">${formatDateKo(date)} · ${byDate[date].length}개</h4>
-          <div class="record-list">${byDate[date].map(recordCardHTML).join("")}</div>
+          <div class="record-list records-list">${byDate[date].map(selectedDateRecordCardHTML).join("")}</div>
         </section>
       `).join("");
     }
