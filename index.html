@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>오늘의 기록</title>
   <meta name="theme-color" content="#9b6a4a">
+  <meta name="application-name" content="오늘의 기록">
+  <meta name="apple-mobile-web-app-title" content="오늘의 기록">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -521,16 +526,19 @@
 
     .bottom-nav {
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
+      left: 0;
+      right: 0;
+      bottom: 0;
       z-index: 50;
       display: none;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 4px;
-      padding: 7px;
+      padding: 7px 12px calc(7px + env(safe-area-inset-bottom));
       border: 1px solid var(--line);
-      border-radius: 20px;
+      border-right: 0;
+      border-bottom: 0;
+      border-left: 0;
+      border-radius: 20px 20px 0 0;
       background: rgba(255, 253, 251, 0.86);
       box-shadow: 0 16px 40px rgba(77, 54, 37, 0.18);
       backdrop-filter: blur(22px);

@@ -1,12 +1,58 @@
 {
   "name": "오늘의 기록",
   "short_name": "오늘의 기록",
-  "description": "개인용 건강 기록 홈페이지",
-  "start_url": "./index.html",
+  "description": "하루의 몸과 마음을 차분히 기록하는 개인 건강 로그",
+  "id": "./",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#f8f5f1",
   "theme_color": "#9b6a4a",
-  "lang": "ko"
+  "lang": "ko",
+  "dir": "ltr",
+  "categories": ["health", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "오늘 기록",
+      "short_name": "오늘",
+      "description": "오늘의 건강 기록을 엽니다.",
+      "url": "./",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "통계 보기",
+      "short_name": "Stats",
+      "description": "기록 통계를 확인합니다.",
+      "url": "./#stats",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
 }

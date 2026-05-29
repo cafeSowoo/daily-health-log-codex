@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="오늘의 기록">
+  <rect width="512" height="512" fill="#d7e5d3"/>
+  <rect x="70" y="70" width="372" height="372" rx="96" fill="#f7ede3"/>
+  <path d="M142 316c56-98 178-111 242-38-39 96-162 133-242 38Z" fill="#fffaf6"/>
+  <path d="M208 304c33-97 104-128 188-128 0 96-65 170-160 176-17-10-28-27-28-48Z" fill="#456b50"/>
+  <path d="M230 326c42-48 91-80 146-112" fill="none" stroke="#f7ede3" stroke-width="19" stroke-linecap="round"/>
+  <circle cx="170" cy="176" r="38" fill="#b07a55"/>
+  <circle cx="186" cy="160" r="38" fill="#f7ede3"/>
+</svg>

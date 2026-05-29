@@ -1,8 +1,16 @@
-const CACHE_NAME = "codex-daily-health-log-20260529-home-cleanup";
+const CACHE_NAME = "codex-daily-health-log-20260529-pwa-icons";
 const SHELL_ASSETS = [
+  "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./env.js"
+  "./env.js",
+  "./favicon.svg",
+  "./assets/icons/app-icon.svg",
+  "./assets/icons/maskable-icon.svg",
+  "./assets/icons/icon-192.png",
+  "./assets/icons/icon-512.png",
+  "./assets/icons/maskable-icon-512.png",
+  "./assets/icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", event => {
