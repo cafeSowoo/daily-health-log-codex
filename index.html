@@ -449,6 +449,60 @@
     .chart-track { height: 10px; overflow: hidden; border-radius: 999px; background: var(--surface-low); }
     .chart-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--primary-dark)); }
 
+    .chart-card { margin-bottom: 18px; }
+    .chart-toggle {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .chart-toggle::-webkit-scrollbar { display: none; }
+    .chart-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      min-height: 38px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fffaf6;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      transition: transform 140ms ease, background 140ms ease, color 140ms ease, border-color 140ms ease;
+    }
+    .chart-chip:hover { transform: translateY(-1px); border-color: rgba(155, 106, 74, 0.3); }
+    .chart-chip .material-symbols-outlined { font-size: 17px; }
+    .chart-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fffaf6;
+      box-shadow: 0 10px 24px rgba(112, 71, 47, 0.2);
+    }
+    .chart-canvas { margin-top: 10px; }
+    .chart-canvas svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .chart-grid-line { stroke: rgba(124, 92, 70, 0.16); stroke-width: 1; }
+    .chart-axis-text { fill: var(--faint); font-size: 11px; font-weight: 700; font-family: inherit; }
+    .chart-axis-text.is-today { fill: var(--primary-dark); font-weight: 800; }
+    .chart-dot { stroke: #fffdfb; stroke-width: 2; }
+    .chart-dot-emoji { font-size: 15px; text-anchor: middle; }
+    .chart-dot-value { fill: var(--muted); font-size: 10px; font-weight: 800; text-anchor: middle; font-family: inherit; }
+    .chart-empty {
+      display: grid;
+      place-items: center;
+      min-height: 180px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 750;
+      text-align: center;
+    }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+    .chart-legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .chart-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
     .gate {
       display: none;
       align-items: center;
@@ -656,6 +710,23 @@
       .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
       .metric-card .metric-summary { font-size: 15px; }
       .metric-add { width: 32px; height: 32px; min-height: 32px; }
+      .chart-toggle {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 6px;
+        overflow: visible;
+        padding-bottom: 0;
+      }
+      .chart-chip {
+        width: 100%;
+        min-width: 0;
+        min-height: 36px;
+        justify-content: center;
+        gap: 0;
+        padding: 0;
+      }
+      .chart-chip .material-symbols-outlined { font-size: 18px; }
+      .chart-chip-label { display: none; }
     }
   </style>
 </head>
@@ -775,6 +846,16 @@
       </section>
 
       <section id="stats" class="view">
+        <article class="card card-pad chart-card">
+          <div class="calendar-head">
+            <div>
+              <h3 class="section-title">주간 추이</h3>
+              <p class="section-meta" id="statsChartMeta">이번주 · 운동</p>
+            </div>
+          </div>
+          <div class="chart-toggle" id="statsChartToggle"></div>
+          <div class="chart-canvas" id="statsChartArea"></div>
+        </article>
         <div class="grid stats-grid" id="statsCards"></div>
         <div class="grid two-grid" style="margin-top:18px;">
           <article class="card card-pad">
@@ -907,6 +988,7 @@
       remoteFailed: false
     };
     const authState = { initialized: false, session: null, user: null };
+    const chartState = { metric: "exercise" };
     let records = [];
     let toastTimer = 0;
 
@@ -1282,6 +1364,14 @@
       return { "소주": "🍶 소주", "맥주": "🍺 맥주", "소맥": "🍺🍶 소맥", "기타": "🥃 기타" }[value] || value || "";
     }
 
+    function drinkEmoji(value) {
+      return { "소주": "🍶", "맥주": "🍺", "소맥": "🍻", "기타": "🥃" }[value] || "🍷";
+    }
+
+    function exerciseEmoji(value) {
+      return { "테니스": "🎾", "걷기": "🚶", "런닝": "🏃", "기타": "💪" }[value] || "🏋️";
+    }
+
     function hasAlcohol(payload = {}) {
       return alcoholLevel(payload) !== "none";
     }
@@ -1599,7 +1689,178 @@
       return [];
     }
 
+    const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+    const statsChartMetrics = {
+      exercise: {
+        label: "운동", icon: "fitness_center", color: "#9b6a4a",
+        axis: { type: "numeric", unit: "분", min: 0 },
+        points(iso) {
+          const record = recordForDateType(iso, "exercise");
+          const minutes = Number(record?.payload?.durationMinutes || 0);
+          if (!record || !minutes) return [];
+          return [{ y: minutes, emoji: exerciseEmoji(record.payload?.exerciseType), valueLabel: `${minutes}분` }];
+        }
+      },
+      meal: {
+        label: "식사", icon: "restaurant", color: "#c98b4b",
+        axis: { type: "level", ticks: ["소식", "적정", "과식"] },
+        legend: [{ label: "점심 ☀️", color: "#c98b4b" }, { label: "저녁 🌙", color: "#6b6aa8" }],
+        points(iso) {
+          const record = recordForDateType(iso, "meal");
+          if (!record) return [];
+          const index = { small: 0, normal: 1, overeaten: 2 };
+          const out = [];
+          const lunch = record.payload?.lunchAmount;
+          const dinner = record.payload?.dinnerAmount;
+          if (index[lunch] !== undefined) out.push({ y: index[lunch], emoji: "☀️", color: "#c98b4b", valueLabel: mealAmountLabel(lunch) });
+          if (index[dinner] !== undefined) out.push({ y: index[dinner], emoji: "🌙", color: "#6b6aa8", valueLabel: mealAmountLabel(dinner) });
+          return out;
+        }
+      },
+      alcohol: {
+        label: "음주", icon: "local_bar", color: "#a84336",
+        axis: { type: "level", ticks: ["금주", "적당", "과음"] },
+        points(iso) {
+          const record = recordForDateType(iso, "alcohol");
+          if (!record) return [];
+          const level = { none: 0, moderate: 1, heavy: 2 }[alcoholLevel(record.payload)] ?? 0;
+          const emoji = level === 0 ? "🚫" : drinkEmoji(record.payload?.drinkType);
+          return [{ y: level, emoji, valueLabel: alcoholLabel(record.payload) }];
+        }
+      },
+      mood: {
+        label: "우울감", icon: "mood", color: "#7f8d67",
+        axis: { type: "level", ticks: ["매우 나쁨", "나쁨", "보통", "좋음", "매우 좋음"] },
+        points(iso) {
+          const record = recordForDateType(iso, "mood");
+          const level = Number(record?.payload?.level || 0);
+          if (!record || !level) return [];
+          const emoji = ["😣", "🙁", "😐", "🙂", "😄"][level - 1] || "";
+          return [{ y: level - 1, emoji, valueLabel: moodLabel(level) }];
+        }
+      },
+      weight: {
+        label: "몸무게", icon: "monitor_weight", color: "#bf8260",
+        axis: { type: "numeric", unit: "kg" },
+        points(iso) {
+          const record = recordForDateType(iso, "weight");
+          const weight = Number(record?.payload?.weightKg || 0);
+          if (!record || !weight) return [];
+          return [{ y: weight, emoji: "⚖️", valueLabel: `${weight}kg` }];
+        }
+      },
+      reading: {
+        label: "독서", icon: "menu_book", color: "#70472f",
+        axis: { type: "numeric", unit: "p", min: 0 },
+        points(iso) {
+          const record = recordForDateType(iso, "reading");
+          const pages = Number(record?.payload?.todayPages || 0);
+          if (!record || !pages) return [];
+          return [{ y: pages, emoji: "📖", valueLabel: `${pages}p` }];
+        }
+      }
+    };
+
+    function currentWeekDays() {
+      const start = new Date(`${startOfWeekIso()}T00:00:00`);
+      return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        const iso = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+        return { iso, dow: WEEKDAY_KO[date.getDay()], day: date.getDate(), isToday: iso === todayIso };
+      });
+    }
+
+    function formatChartTick(value, unit) {
+      const rounded = unit === "kg" ? Number(value).toFixed(1) : String(Math.round(value));
+      return `${rounded}${unit || ""}`;
+    }
+
+    function buildChartSVG(metric, days, dayPoints) {
+      const flat = dayPoints.flat();
+      if (!flat.length) {
+        return `<div class="chart-empty">이번주에는 ${escapeHTML(metric.label)} 기록이 아직 없습니다.</div>`;
+      }
+
+      const W = 720, H = 248, padL = 48, padR = 18, padT = 28, padB = 30;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+      const bandW = plotW / 7;
+      const xFor = index => padL + bandW * (index + 0.5);
+
+      let ticks = [];
+      let yToPx;
+      if (metric.axis.type === "level") {
+        const labels = metric.axis.ticks;
+        const count = labels.length;
+        yToPx = index => padT + plotH - (count === 1 ? plotH / 2 : (index / (count - 1)) * plotH);
+        ticks = labels.map((label, index) => ({ label, py: yToPx(index) }));
+      } else {
+        const values = flat.map(point => point.y);
+        let min = metric.axis.min !== undefined ? metric.axis.min : Math.min(...values);
+        let max = Math.max(...values);
+        if (max === min) max += 1;
+        const range = max - min;
+        max += range * 0.18;
+        if (metric.axis.min === undefined) min = Math.max(0, min - range * 0.18);
+        yToPx = value => padT + plotH - ((value - min) / (max - min)) * plotH;
+        const tickCount = 4;
+        ticks = Array.from({ length: tickCount + 1 }, (_, step) => {
+          const value = min + (step / tickCount) * (max - min);
+          return { label: formatChartTick(value, metric.axis.unit), py: yToPx(value) };
+        });
+      }
+
+      const gridLines = ticks.map(tick => `<line class="chart-grid-line" x1="${padL}" y1="${tick.py.toFixed(1)}" x2="${W - padR}" y2="${tick.py.toFixed(1)}"></line>`).join("");
+      const yLabels = ticks.map(tick => `<text class="chart-axis-text" x="${padL - 8}" y="${(tick.py + 3.5).toFixed(1)}" text-anchor="end">${escapeHTML(tick.label)}</text>`).join("");
+      const xLabels = days.map((day, index) => `<text class="chart-axis-text ${day.isToday ? "is-today" : ""}" x="${xFor(index).toFixed(1)}" y="${H - padB + 20}" text-anchor="middle">${day.dow} ${day.day}</text>`).join("");
+
+      const dots = days.map((day, index) => {
+        const points = dayPoints[index];
+        if (!points.length) return "";
+        return points.map((point, offset) => {
+          const spread = points.length > 1 ? (offset - (points.length - 1) / 2) * 13 : 0;
+          const cx = xFor(index) + spread;
+          const cy = yToPx(point.y);
+          const color = point.color || metric.color;
+          const valueLabel = metric.axis.type === "numeric" && point.valueLabel
+            ? `<text class="chart-dot-value" x="${cx.toFixed(1)}" y="${(cy - 24).toFixed(1)}">${escapeHTML(point.valueLabel)}</text>`
+            : "";
+          const emoji = point.emoji
+            ? `<text class="chart-dot-emoji" x="${cx.toFixed(1)}" y="${(cy - 11).toFixed(1)}">${point.emoji}</text>`
+            : "";
+          return `${valueLabel}${emoji}<circle class="chart-dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${color}"></circle>`;
+        }).join("");
+      }).join("");
+
+      const legend = metric.legend
+        ? `<div class="chart-legend">${metric.legend.map(item => `<span class="chart-legend-item"><span class="chart-legend-dot" style="background:${item.color}"></span>${escapeHTML(item.label)}</span>`).join("")}</div>`
+        : "";
+
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHTML(metric.label)} 주간 추이">${gridLines}${yLabels}${xLabels}${dots}</svg>${legend}`;
+    }
+
+    function renderStatsChart() {
+      const metric = statsChartMetrics[chartState.metric] || statsChartMetrics.exercise;
+      const days = currentWeekDays();
+      const dayPoints = days.map(day => metric.points(day.iso));
+
+      document.querySelector("#statsChartToggle").innerHTML = Object.entries(statsChartMetrics)
+        .map(([key, item]) => `
+          <button class="chart-chip ${key === chartState.metric ? "active" : ""}" type="button" data-chart-metric="${key}">
+            <span class="material-symbols-outlined">${item.icon}</span><span class="chart-chip-label">${item.label}</span>
+          </button>
+        `).join("");
+
+      document.querySelector("#statsChartArea").innerHTML = buildChartSVG(metric, days, dayPoints);
+
+      const month = Number(days[0].iso.split("-")[1]);
+      document.querySelector("#statsChartMeta").textContent = `${month}월 ${days[0].day}일 ~ ${days[6].day}일 · ${metric.label}`;
+    }
+
     function renderStats() {
+      renderStatsChart();
       const last30 = recordsInLastDays(30);
       const exerciseMinutes = last30.filter(r => r.type === "exercise").reduce((sum, r) => sum + Number(r.payload?.durationMinutes || 0), 0);
       const readingPages = last30.filter(r => r.type === "reading").reduce((sum, r) => sum + Number(r.payload?.todayPages || 0), 0);
@@ -1846,6 +2107,13 @@
     }
 
     function handleDocumentClick(event) {
+      const chartMetricButton = event.target.closest("[data-chart-metric]");
+      if (chartMetricButton) {
+        chartState.metric = chartMetricButton.dataset.chartMetric;
+        renderStatsChart();
+        return;
+      }
+
       const viewButton = event.target.closest("[data-view]");
       if (viewButton) {
         switchView(viewButton.dataset.view);
