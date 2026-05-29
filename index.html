@@ -43,7 +43,8 @@
     html::-webkit-scrollbar,
     body::-webkit-scrollbar,
     .main::-webkit-scrollbar,
-    .sheet-panel::-webkit-scrollbar {
+    .sheet-panel::-webkit-scrollbar,
+    #selectedDatePanel::-webkit-scrollbar {
       display: none;
     }
     body {
@@ -227,7 +228,7 @@
     .metric-card {
       width: 100%;
       display: grid;
-      grid-template-columns: 34px minmax(0, 1fr) auto 34px;
+      grid-template-columns: 34px minmax(0, 1fr) 34px;
       align-items: center;
       gap: 12px;
       padding: 14px;
@@ -239,14 +240,70 @@
       cursor: pointer;
       text-align: left;
     }
+    .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
     .metric-card .metric-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--primary-soft); color: var(--primary-dark); }
     .metric-card .metric-icon .material-symbols-outlined { font-size: 18px; }
     .metric-copy { min-width: 0; }
-    .metric-card .metric-label { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
-    .metric-card .metric-value { color: var(--text); font-size: 20px; font-weight: 800; line-height: 1.1; }
-    .metric-card .metric-sub { display: block; margin-top: 2px; color: var(--faint); font-size: 11px; font-weight: 750; }
+    .metric-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+    .metric-card .metric-label { display: block; flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .metric-card .metric-summary {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-left: auto;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .metric-card.is-empty .metric-icon { background: var(--surface-warm); color: var(--faint); }
-    .metric-card.is-empty .metric-value { color: var(--faint); }
+    .metric-card.is-empty .metric-summary { color: var(--faint); font-weight: 750; }
+    .metric-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .metric-pill.level-1 { background: #e4f3df; color: #427235; }
+    .metric-pill.level-2 { background: #edf4df; color: #65783a; }
+    .metric-pill.level-3 { background: #f6eddc; color: #8b6428; }
+    .metric-pill.level-4 { background: #f8e4d6; color: #9a552f; }
+    .metric-pill.level-5 { background: #f4d9d4; color: #a84336; }
+    .metric-pills { display: flex; align-items: center; justify-content: flex-end; min-width: 0; margin-left: auto; gap: 6px; overflow: hidden; }
+    .metric-fragment-text {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .metric-separator {
+      flex: 0 0 auto;
+      color: var(--faint);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .metric-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .metric-state-label { flex: 0 0 auto; }
     .metric-add {
       display: grid;
       place-items: center;
@@ -319,6 +376,7 @@
     .selected-back { display: none; }
 
     .record-list { display: grid; gap: 10px; }
+    .selected-date-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
     .record-card {
       width: 100%;
       border: 1px solid var(--line);
@@ -560,8 +618,9 @@
         right: 0;
         z-index: 30;
         min-height: 100%;
-        max-height: 80vh;
-        overflow-y: auto;
+        max-height: none;
+        overflow: visible;
+        scrollbar-width: none;
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
         transform: translateY(16px);
         opacity: 0;
@@ -586,9 +645,9 @@
       .calendar-day { min-height: 38px; border-radius: 11px; }
       .page-title { font-size: 32px; }
       .today-metrics { gap: 8px; }
-      .metric-card { padding: 12px 10px; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) auto 32px; }
-      .metric-card .metric-value { font-size: 18px; }
-      .metric-card .metric-sub { display: none; }
+      .metric-card { padding: 12px 10px; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) 32px; }
+      .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
+      .metric-card .metric-summary { font-size: 15px; }
       .metric-add { width: 32px; height: 32px; min-height: 32px; }
     }
   </style>
@@ -635,18 +694,7 @@
       <section id="home" class="view active">
         <div class="today-overview" id="homeTodayCards"></div>
 
-        <div class="grid two-grid home-block">
-          <article class="card card-pad">
-            <div class="calendar-head">
-              <div>
-                <h3 class="section-title">어제 한눈에</h3>
-                <p class="section-meta" id="homeYesterdayMeta">오늘과 비교할 기준점</p>
-              </div>
-              <button class="btn btn-ghost" type="button" data-jump-date="yesterday"><span class="material-symbols-outlined">chevron_right</span>보기</button>
-            </div>
-            <div id="homeYesterday" class="yesterday-list"></div>
-          </article>
-
+        <div class="grid home-block">
           <article class="card card-pad">
             <div class="calendar-head">
               <div>
@@ -685,12 +733,10 @@
                 <button class="btn icon-btn selected-back" type="button" data-selected-close aria-label="달력으로 돌아가기"><span class="material-symbols-outlined">arrow_back</span></button>
                 <div>
                   <h3 class="section-title" id="selectedDateTitle">오늘</h3>
-                  <p class="section-meta" id="selectedDateMeta">0개의 기록</p>
                 </div>
               </div>
-              <button class="btn btn-primary" type="button" data-add-record-selected><span class="material-symbols-outlined">add</span>추가</button>
             </div>
-            <div id="selectedDateList" class="record-list"></div>
+            <div id="selectedDateList" class="record-list selected-date-list"></div>
           </aside>
         </div>
       </section>
@@ -1221,8 +1267,47 @@
       return { none: "금주", moderate: "적당", heavy: "과음" }[alcoholLevel(payload)] || "금주";
     }
 
+    function alcoholToneLevel(payload = {}) {
+      return { none: 1, moderate: 3, heavy: 5 }[alcoholLevel(payload)] || 1;
+    }
+
+    function drinkTypeEmojiLabel(value) {
+      return { "소주": "🍶 소주", "맥주": "🍺 맥주", "소맥": "🍺🍶 소맥", "기타": "🥃 기타" }[value] || value || "";
+    }
+
     function hasAlcohol(payload = {}) {
       return alcoholLevel(payload) !== "none";
+    }
+
+    function mealAmountLabel(value) {
+      return { overeaten: "과식", normal: "적정", small: "소식" }[value] || value || "";
+    }
+
+    function mealAmountToneLevel(value) {
+      return { small: 1, normal: 3, overeaten: 5 }[value] || 0;
+    }
+
+    function moodLabel(value) {
+      return { 1: "매우 나쁨", 2: "나쁨", 3: "보통", 4: "좋음", 5: "매우 좋음" }[Number(value)] || "";
+    }
+
+    function moodToneLevel(value) {
+      const level = Number(value);
+      return level ? 6 - level : 0;
+    }
+
+    function exerciseTypeLabel(value) {
+      return { "테니스": "🎾 테니스", "걷기": "🚶 걷기", "런닝": "🏃 런닝", "기타": "💪 기타" }[value] || value || "";
+    }
+
+    function exerciseIntensityToneLevel(value) {
+      return { "낮음": 1, "보통": 3, "높음": 5 }[value] || 0;
+    }
+
+    function recordForDateType(dateValue, type, excludeId = "") {
+      return records
+        .filter(item => item.date === dateValue && item.type === type && item.id !== excludeId)
+        .sort(compareRecords)[0] || null;
     }
 
     function summaryText(record) {
@@ -1232,15 +1317,21 @@
       }
       if (record.type === "meal") {
         const parts = [
-          p.lunchAmount ? `점심 ${p.lunchAmount}` : "",
-          p.dinnerAmount ? `저녁 ${p.dinnerAmount}` : "",
+          p.lunchAmount ? `점심 ${mealAmountLabel(p.lunchAmount)}` : "",
+          p.dinnerAmount ? `저녁 ${mealAmountLabel(p.dinnerAmount)}` : "",
           p.foodType && !p.lunchAmount && !p.dinnerAmount ? p.foodType : "",
           p.memo || ""
         ];
         return parts.filter(Boolean).join(" · ") || "식사";
       }
       if (record.type === "alcohol") return [alcoholLabel(p), p.drinkType || "", p.amount || "", p.memo || ""].filter(Boolean).join(" · ");
-      if (record.type === "mood") return [`우울감 ${p.level || "-"} / 5`, p.memo || ""].filter(Boolean).join(" · ");
+      if (record.type === "mood") {
+        return [
+          p.level ? `우울감 ${moodLabel(p.level) || p.level}` : "",
+          p.workLevel ? `업무 컨디션 ${moodLabel(p.workLevel) || p.workLevel}` : "",
+          p.memo || ""
+        ].filter(Boolean).join(" · ");
+      }
       if (record.type === "weight") return p.weightKg ? `${p.weightKg}kg` : "몸무게";
       if (record.type === "reading") {
         return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`].join(" · ");
@@ -1276,76 +1367,115 @@
       return moodRow ? Number(moodRow.payload.level) : null;
     }
 
+    function homeMetricSummary(type, record) {
+      if (!record) return { text: "입력 전", empty: true };
+      const p = record.payload || {};
+      if (type === "exercise") {
+        const fragments = [
+          p.exerciseType ? { kind: "text", text: exerciseTypeLabel(p.exerciseType) } : null,
+          p.durationMinutes ? { kind: "text", text: `${p.durationMinutes}분` } : null,
+          p.intensity ? { kind: "pill", text: p.intensity, level: exerciseIntensityToneLevel(p.intensity) } : null
+        ].filter(Boolean);
+        return fragments.length ? { fragments, empty: false } : { text: "운동 기록 있음", empty: false };
+      }
+      if (type === "meal") {
+        const fragments = [
+          p.lunchAmount ? { kind: "state", label: "☀️ 점심", text: mealAmountLabel(p.lunchAmount), level: mealAmountToneLevel(p.lunchAmount) } : null,
+          p.dinnerAmount ? { kind: "state", label: "🌙 저녁", text: mealAmountLabel(p.dinnerAmount), level: mealAmountToneLevel(p.dinnerAmount) } : null,
+          p.foodType && !p.lunchAmount && !p.dinnerAmount ? { kind: "text", text: p.foodType } : null
+        ].filter(Boolean);
+        return fragments.length ? { fragments, empty: false } : { text: "식사 기록 있음", empty: false };
+      }
+      if (type === "alcohol") {
+        const fragments = [
+          p.drinkType ? { kind: "text", text: drinkTypeEmojiLabel(p.drinkType) } : null,
+          p.amount ? { kind: "text", text: p.amount } : null,
+          { kind: "pill", text: alcoholLabel(p), level: alcoholToneLevel(p) }
+        ].filter(Boolean);
+        return { fragments, empty: false };
+      }
+      if (type === "mood") {
+        const fragments = [];
+        if (p.level) fragments.push({ kind: "state", label: "우울감", text: moodLabel(p.level) || p.level, level: moodToneLevel(p.level) });
+        if (p.workLevel) fragments.push({ kind: "state", label: "업무 컨디션", text: moodLabel(p.workLevel) || p.workLevel, level: moodToneLevel(p.workLevel) });
+        return fragments.length ? { fragments, empty: false } : { text: "우울감 기록 있음", empty: false };
+      }
+      if (type === "weight") {
+        return { text: p.weightKg ? `⚖️ ${p.weightKg}kg` : "몸무게 기록 있음", empty: false };
+      }
+      if (type === "reading") {
+        const fragments = [
+          p.todayPages ? { kind: "text", text: `🔖 ${p.todayPages}p` } : null,
+          p.todayMinutes ? { kind: "text", text: `⏱️ ${p.todayMinutes}분` } : null
+        ].filter(Boolean);
+        return fragments.length ? { fragments, empty: false } : { text: "독서 기록 있음", empty: false };
+      }
+      return { text: "기록 있음", empty: false };
+    }
+
+    function metricFragmentHTML(fragment) {
+      if (fragment.kind === "pill") {
+        return `<span class="metric-pill level-${fragment.level}">${escapeHTML(fragment.text)}</span>`;
+      }
+      if (fragment.kind === "state") {
+        return `<span class="metric-state"><span class="metric-state-label">${escapeHTML(fragment.label)}</span><span class="metric-pill level-${fragment.level}">${escapeHTML(fragment.text)}</span></span>`;
+      }
+      return `<span class="metric-fragment-text">${escapeHTML(fragment.text)}</span>`;
+    }
+
+    function metricSummaryHTML(metric) {
+      if (metric.fragments?.length) {
+        return `<span class="metric-pills">${metric.fragments.map(metricFragmentHTML).join(`<span class="metric-separator">·</span>`)}</span>`;
+      }
+      return `<span class="metric-summary">${escapeHTML(metric.text)}</span>`;
+    }
+
+    function selectedDateRecordCardHTML(record) {
+      const type = recordTypes[record.type] || recordTypes.exercise;
+      const summary = homeMetricSummary(record.type, record);
+      return `
+        <button class="metric-card has-record" type="button" data-record-id="${escapeHTML(record.id)}" aria-label="${type.label} 수정">
+          <span class="metric-icon"><span class="material-symbols-outlined">${type.icon}</span></span>
+          <span class="metric-copy">
+            <span class="metric-line">
+              <span class="metric-label">${type.label}</span>
+              ${metricSummaryHTML(summary)}
+            </span>
+          </span>
+        </button>
+      `;
+    }
+
     function renderHome() {
       renderHomeTodayCards();
-      renderHomeYesterday();
       renderHomeWeek();
     }
 
     function renderHomeTodayCards() {
-      const todayRows = recordsForDate(todayIso);
-      const todayExercise = sumPayload(todayRows, "exercise", "durationMinutes");
-      const todayMeal = todayRows.filter(r => r.type === "meal").length;
-      const todayAlcohol = todayRows.filter(r => r.type === "alcohol" && hasAlcohol(r.payload)).length;
-      const todayReading = sumPayload(todayRows, "reading", "todayPages");
-      const todayMood = latestMoodLevel(todayRows);
-      const todayWeight = todayRows.find(r => r.type === "weight" && Number(r.payload?.weightKg))?.payload?.weightKg || "";
-
-      const metrics = [
-        { key: "exercise", icon: "fitness_center", label: "운동", value: todayExercise ? `${todayExercise}분` : "—", sub: todayExercise ? "오늘 기록" : "미입력", empty: !todayExercise },
-        { key: "meal", icon: "restaurant", label: "식사", value: todayMeal ? `${todayMeal}개` : "—", sub: todayMeal ? "오늘 기록" : "미입력", empty: !todayMeal },
-        { key: "alcohol", icon: "local_bar", label: "음주", value: todayAlcohol ? `${todayAlcohol}회` : "—", sub: todayAlcohol ? "오늘 기록" : "미입력", empty: !todayAlcohol },
-        { key: "mood", icon: "mood", label: "우울감", value: todayMood ? `${todayMood}/5` : "—", sub: todayMood ? "우울감 단계" : "미입력", empty: !todayMood },
-        { key: "weight", icon: "monitor_weight", label: "몸무게", value: todayWeight ? `${todayWeight}kg` : "—", sub: todayWeight ? "오늘 기록" : "미입력", empty: !todayWeight },
-        { key: "reading", icon: "menu_book", label: "독서", value: todayReading ? `${todayReading}p` : "—", sub: todayReading ? "오늘 기록" : "미입력", empty: !todayReading }
-      ];
+      const metrics = Object.entries(recordTypes).map(([key, item]) => {
+        const record = recordForDateType(todayIso, key);
+        const summary = homeMetricSummary(key, record);
+        return { key, ...item, ...summary };
+      });
 
       document.querySelector("#homeTodayCards").innerHTML = `
         <div class="today-metrics">
           ${metrics.map(m => `
-            <button class="metric-card ${m.empty ? "is-empty" : ""}" type="button" data-quick-type="${m.key}" aria-label="${m.label} 입력">
+            <button class="metric-card ${m.empty ? "is-empty" : "has-record"}" type="button" data-quick-type="${m.key}" aria-label="${m.label} ${m.empty ? "입력" : "수정"}">
               <span class="metric-icon"><span class="material-symbols-outlined">${m.icon}</span></span>
               <span class="metric-copy">
-                <span class="metric-label">${m.label}</span>
-                <span class="metric-sub">${m.sub}</span>
+                <span class="metric-line">
+                  <span class="metric-label">${m.label}</span>
+                  ${metricSummaryHTML(m)}
+                </span>
               </span>
-              <span class="metric-value">${m.value}</span>
-              <span class="metric-add" aria-hidden="true">
+              ${m.empty ? `<span class="metric-add" aria-hidden="true">
                 <span class="material-symbols-outlined">add</span>
-              </span>
+              </span>` : ""}
             </button>
           `).join("")}
         </div>
       `;
-    }
-
-    function renderHomeYesterday() {
-      const yIso = todayIsoLocal(-1);
-      const rows = recordsForDate(yIso);
-      const meta = document.querySelector("#homeYesterdayMeta");
-      const root = document.querySelector("#homeYesterday");
-      meta.textContent = `${formatDateKo(yIso)} · ${rows.length}개 기록`;
-
-      if (!rows.length) {
-        root.innerHTML = `<div class="empty">어제는 기록이 없습니다.</div>`;
-        return;
-      }
-
-      const items = [];
-      const ex = sumPayload(rows, "exercise", "durationMinutes");
-      if (ex) items.push(["fitness_center", `운동 ${ex}분`]);
-      const rd = sumPayload(rows, "reading", "todayPages");
-      if (rd) items.push(["menu_book", `독서 ${rd}p`]);
-      const mood = latestMoodLevel(rows);
-      if (mood) items.push(["mood", `우울감 ${mood} / 5`]);
-      const drinkRows = rows.filter(r => r.type === "alcohol");
-      if (drinkRows.length) items.push(["local_bar", drinkRows.some(r => hasAlcohol(r.payload)) ? "음주 있음" : "음주 없음"]);
-      const meals = rows.filter(r => r.type === "meal").length;
-      if (meals) items.push(["restaurant", `식사 ${meals}회`]);
-
-      root.innerHTML = items.length
-        ? items.map(([icon, text]) => `<div class="yesterday-item"><span class="material-symbols-outlined">${icon}</span>${text}</div>`).join("")
-        : `<div class="empty">요약할 수치가 없습니다.</div>`;
     }
 
     function renderHomeWeek() {
@@ -1388,9 +1518,8 @@
     function renderSelectedDate() {
       const rows = recordsForDate(state.selectedDate);
       document.querySelector("#selectedDateTitle").textContent = formatDateKo(state.selectedDate);
-      document.querySelector("#selectedDateMeta").textContent = `${rows.length}개의 기록`;
       document.querySelector("#selectedDateList").innerHTML = rows.length
-        ? rows.map(recordCardHTML).join("")
+        ? rows.map(selectedDateRecordCardHTML).join("")
         : `<div class="empty">이 날짜에는 아직 기록이 없습니다.<br>운동, 식사, 음주, 우울감, 몸무게, 독서를 항목별로 추가해 보세요.</div>`;
     }
 
@@ -1454,9 +1583,9 @@
     function detailFields(record) {
       const p = record.payload || {};
       if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType]];
-      if (record.type === "meal") return [["점심", p.lunchAmount || ""], ["저녁", p.dinnerAmount || ""], ["메모", p.memo]];
+      if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
       if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["마신 양", p.amount], ["메모", p.memo]];
-      if (record.type === "mood") return [["우울감", p.level ? `${p.level} / 5` : ""], ["메모", p.memo]];
+      if (record.type === "mood") return [["우울감", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
       if (record.type === "weight") return [["몸무게", p.weightKg ? `${p.weightKg}kg` : ""]];
       if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""]];
       return [];
@@ -1556,15 +1685,18 @@
         return;
       }
 
+      const targetDate = record?.date || date || todayIso;
+      const targetType = record?.type || type;
+      const targetRecord = record || recordForDateType(targetDate, targetType);
       const sheet = document.querySelector("#recordSheet");
       sheet.classList.add("open");
       sheet.setAttribute("aria-hidden", "false");
-      document.querySelector("#sheetTitleText").textContent = record ? "기록 수정" : "기록 추가";
-      document.querySelector("#recordId").value = record?.id || "";
-      document.querySelector("#recordDate").value = record?.date || date || todayIso;
-      document.querySelector("#recordType").value = record?.type || type;
+      document.querySelector("#sheetTitleText").textContent = targetRecord ? "기록 수정" : "기록 추가";
+      document.querySelector("#recordId").value = targetRecord?.id || "";
+      document.querySelector("#recordDate").value = targetRecord?.date || targetDate;
+      document.querySelector("#recordType").value = targetRecord?.type || targetType;
       renderSheetTypeBadge();
-      renderDynamicFields(record?.payload || {});
+      renderDynamicFields(targetRecord?.payload || {});
     }
 
     function closeSheet() {
@@ -1602,12 +1734,13 @@
         `,
         alcohol: `
           ${choiceField("음주", "drinkLevel", [["none", "금주"], ["moderate", "적당"], ["heavy", "과음"]], drinkLevel, { full: true })}
-          ${choiceField("주종", "drinkType", [["맥주", "맥주"], ["와인", "와인"], ["소주", "소주"], ["기타", "기타"]], value("drinkType"), { full: true })}
+          ${choiceField("주종", "drinkType", [["맥주", "맥주"], ["소맥", "소맥"], ["소주", "소주"], ["기타", "기타"]], value("drinkType"), { full: true })}
           ${inputField("마신 양", "amount", "text", value("amount"), "예: 맥주 1캔")}
           ${textareaField("메모", "memo", value("memo"))}
         `,
         mood: `
-          ${choiceField("우울감", "level", [["1", "낮음"], ["2", "약간 낮음"], ["3", "보통"], ["4", "약간 높음"], ["5", "높음"]], value("level"), { full: true })}
+          ${choiceField("우울감", "level", [["1", "매우 나쁨"], ["2", "나쁨"], ["3", "보통"], ["4", "좋음"], ["5", "매우 좋음"]], value("level"), { full: true })}
+          ${choiceField("업무 컨디션", "workLevel", [["1", "매우 나쁨"], ["2", "나쁨"], ["3", "보통"], ["4", "좋음"], ["5", "매우 좋음"]], value("workLevel"), { full: true })}
           ${textareaField("메모", "memo", value("memo"))}
         `,
         weight: `
@@ -1662,7 +1795,7 @@
         const drinkLevel = get("drinkLevel") || "none";
         return { drinkLevel, didDrink: drinkLevel === "none" ? "no" : "yes", drinkType: get("drinkType"), amount: get("amount"), memo: get("memo") };
       }
-      if (type === "mood") return { level: get("level"), memo: get("memo") };
+      if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
       if (type === "weight") return { weightKg: number("weightKg") };
       if (type === "reading") return { todayPages: number("todayPages"), todayMinutes: number("todayMinutes") };
       return {};
@@ -1674,12 +1807,15 @@
         canEditOrThrow();
         const form = event.currentTarget;
         const formData = new FormData(form);
-        const id = document.querySelector("#recordId").value;
+        const formId = document.querySelector("#recordId").value;
         const type = document.querySelector("#recordType").value;
-        const existing = records.find(item => item.id === id);
+        const date = document.querySelector("#recordDate").value;
+        const existing = records.find(item => item.id === formId) || recordForDateType(date, type);
+        const duplicate = existing?.id === formId ? recordForDateType(date, type, formId) : null;
+        if (duplicate) throw new Error("같은 날짜의 같은 항목 기록이 이미 있습니다. 기존 항목을 열어 수정해 주세요.");
         const record = {
-          id,
-          date: document.querySelector("#recordDate").value,
+          id: existing?.id || "",
+          date,
           type,
           payload: payloadFromForm(type, formData),
           createdAt: existing?.createdAt,
@@ -1716,10 +1852,6 @@
         return;
       }
 
-      if (event.target.closest("[data-add-record-selected]")) {
-        openSheet({ date: state.selectedDate || todayIso });
-        return;
-      }
       const quickType = event.target.closest("[data-quick-type]");
       if (quickType) {
         openSheet({ date: todayIso, type: quickType.dataset.quickType });
