@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codex/ui-home-refine
   workflow_dispatch:
 
 permissions:
