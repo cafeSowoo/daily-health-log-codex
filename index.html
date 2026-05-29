@@ -600,6 +600,7 @@
       grid-template-columns: repeat(var(--choice-count, 3), minmax(0, 1fr));
       gap: 7px;
     }
+    .choice-field.full .choice-row { gap: 5px; }
     .choice-row input { position: absolute; opacity: 0; pointer-events: none; }
     .choice-row span {
       display: flex;
@@ -615,8 +616,9 @@
       font-weight: 800;
     }
     .choice-field.full .choice-row span {
-      padding: 0 4px;
-      font-size: 12px;
+      min-height: 40px;
+      padding: 0 2px;
+      font-size: 11px;
       white-space: nowrap;
     }
     .choice-row input:checked + span {
@@ -1377,7 +1379,7 @@
     }
 
     function exerciseEmoji(value) {
-      return { "테니스": "🎾", "걷기": "🚶", "런닝": "🏃", "기타": "💪" }[value] || "🏋️";
+      return { "테니스": "🎾", "자전거": "🚴", "걷기": "🚶", "런닝": "🏃", "기타": "💪" }[value] || "🏋️";
     }
 
     function hasAlcohol(payload = {}) {
@@ -1402,7 +1404,7 @@
     }
 
     function exerciseTypeLabel(value) {
-      return { "테니스": "🎾 테니스", "걷기": "🚶 걷기", "런닝": "🏃 런닝", "기타": "💪 기타" }[value] || value || "";
+      return { "테니스": "🎾 테니스", "자전거": "🚴 자전거", "걷기": "🚶 걷기", "런닝": "🏃 런닝", "기타": "💪 기타" }[value] || value || "";
     }
 
     function exerciseIntensityToneLevel(value) {
@@ -2000,7 +2002,7 @@
       const drinkLevel = value("drinkLevel") || (value("didDrink") === "yes" ? "moderate" : "none");
       const fields = {
         exercise: `
-          ${choiceField("운동 종류", "exerciseType", [["테니스", "테니스"], ["걷기", "걷기"], ["런닝", "런닝"], ["기타", "기타"]], exerciseType, { full: true })}
+          ${choiceField("운동 종류", "exerciseType", [["테니스", "테니스"], ["자전거", "자전거"], ["걷기", "걷기"], ["런닝", "런닝"], ["기타", "기타"]], exerciseType, { full: true })}
           ${inputField("운동시간", "durationMinutes", "number", value("durationMinutes"), "분")}
           ${selectField("강도", "intensity", ["", "낮음", "보통", "높음"], intensity)}
         `,
@@ -2080,9 +2082,20 @@
 
     async function handleRecordSubmit(event) {
       event.preventDefault();
+      const form = event.currentTarget;
+      if (form.dataset.saving === "true") return;
+      const submitButton = event.submitter?.matches?.("button[type='submit']")
+        ? event.submitter
+        : form.querySelector("button[type='submit']");
+      const previousSubmitHTML = submitButton?.innerHTML || "";
       try {
+        form.dataset.saving = "true";
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.innerHTML = `<span class="material-symbols-outlined">hourglass_top</span>저장 중`;
+        }
+        showToast("저장 중입니다...");
         canEditOrThrow();
-        const form = event.currentTarget;
         const formData = new FormData(form);
         const formId = document.querySelector("#recordId").value;
         const type = document.querySelector("#recordType").value;
@@ -2111,6 +2124,12 @@
       } catch (error) {
         console.error(error);
         showToast(error.message || "저장하지 못했습니다.");
+      } finally {
+        delete form.dataset.saving;
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML = previousSubmitHTML;
+        }
       }
     }
 
