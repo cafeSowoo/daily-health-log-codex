@@ -1,4 +1,4 @@
-const CACHE_NAME = "codex-daily-health-log-__CACHE_VERSION__";
+const CACHE_NAME = "codex-daily-health-log-20260529-home-cleanup";
 const SHELL_ASSETS = [
   "./index.html",
   "./manifest.webmanifest",

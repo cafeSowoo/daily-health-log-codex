@@ -2,7 +2,7 @@ create table if not exists public.codex_records (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   record_date date not null,
-  record_type text not null check (record_type in ('exercise', 'meal', 'alcohol', 'mood', 'reading')),
+  record_type text not null check (record_type in ('exercise', 'meal', 'alcohol', 'mood', 'weight', 'reading')),
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
