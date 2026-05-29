@@ -1184,33 +1184,25 @@
         return;
       }
 
-      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-        authState.session = session || null;
-        authState.user = session?.user || null;
-        authState.initialized = true;
-        syncAuthUI();
-        await loadRecords();
-        renderAll();
-      });
-
-      const sessionResult = await Promise.race([
-        supabaseClient.auth.getSession(),
-        new Promise(resolve => setTimeout(() => resolve({ data: { session: null }, error: null, timedOut: true }), 1800))
-      ]);
-      const { data, error, timedOut } = sessionResult;
-      if (timedOut) console.warn("Auth session check timed out. Rendering locked state.");
+      const { data, error } = await supabaseClient.auth.getSession();
       if (error) console.warn("Auth session could not be loaded.", error);
       authState.session = data?.session || null;
       authState.user = authState.session?.user || null;
       authState.initialized = true;
       syncAuthUI();
+
+      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+        authState.session = session || null;
+        authState.user = session?.user || null;
+        syncAuthUI();
+        await loadRecords();
+        renderAll();
+      });
     }
 
     function authRedirectUrl() {
       if (window.location.origin && window.location.origin !== "null" && /^https?:$/.test(window.location.protocol)) {
-        const basePath = `${window.location.origin}${window.location.pathname}`;
-        const authVersion = `auth-${Date.now()}`;
-        return `${basePath}?v=${authVersion}`;
+        return `${window.location.origin}${window.location.pathname}`;
       }
       return CONFIG.siteUrl || "http://localhost:4177/";
     }
@@ -2308,15 +2300,10 @@
 
     async function boot() {
       bindEvents();
-      renderAll();
       await initAuth();
       await loadRecords();
       renderAll();
-      if ("serviceWorker" in navigator && ["localhost", "127.0.0.1"].includes(location.hostname)) {
-        navigator.serviceWorker.getRegistrations()
-          .then(registrations => registrations.forEach(registration => registration.unregister()))
-          .catch(error => console.warn("Local service worker cleanup failed.", error));
-      } else if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      if ("serviceWorker" in navigator && location.protocol !== "file:") {
         navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Service worker registration failed.", error));
       }
     }
