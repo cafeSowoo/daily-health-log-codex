@@ -15,9 +15,10 @@
   "categories": ["health", "lifestyle", "productivity"],
   "icons": [
     {
-      "src": "./favicon.svg",
+      "src": "./favicon.png",
       "sizes": "64x64",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "./assets/icons/icon-192.png",

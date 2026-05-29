@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="오늘의 기록">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -112,11 +112,12 @@
       height: 42px;
       display: grid;
       place-items: center;
-      border-radius: 15px;
-      background: linear-gradient(145deg, #b9805b, #7d543a);
-      color: #fffaf6;
-      box-shadow: 0 12px 28px rgba(112, 71, 47, 0.25);
+      border-radius: 0;
+      overflow: visible;
+      background: transparent;
+      box-shadow: none;
     }
+    .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 
     .brand-title { margin: 0; font-size: 18px; font-weight: 800; }
     .brand-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -146,17 +147,39 @@
     }
 
     .sidebar-actions { position: absolute; left: 16px; right: 16px; bottom: 24px; display: grid; gap: 10px; }
-    .main { min-width: 0; padding: 28px 28px 96px; }
+    .main { min-width: 0; padding: 88px 28px 96px; }
     .topbar {
+      position: fixed;
+      top: 0;
+      left: 248px;
+      right: 0;
+      z-index: 60;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      max-width: 1180px;
-      margin: 0 auto 24px;
+      height: 64px;
+      padding: 0 28px;
+      border-bottom: 1px solid rgba(214, 194, 179, 0.42);
+      background: rgba(246, 237, 230, 0.82);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
     }
 
     .page-heading { min-width: 0; }
+    .page-title-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+    .page-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 0;
+      object-fit: cover;
+      box-shadow: none;
+    }
     .page-title { margin: 0; font-size: clamp(28px, 4vw, 48px); line-height: 1.04; font-weight: 800; }
     .page-copy { display: none; }
     .view { display: none; max-width: 1180px; margin: 0 auto; animation: enter 180ms ease both; }
@@ -672,11 +695,16 @@
     @media (max-width: 980px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
-      .main { padding: 20px 16px 100px; }
+      .main { padding: calc(70px + env(safe-area-inset-top)) 16px 100px; }
+      .topbar {
+        left: 0;
+        height: calc(54px + env(safe-area-inset-top));
+        padding: env(safe-area-inset-top) 16px 0;
+      }
       .bottom-nav { display: grid; }
       .home-grid, .two-grid { grid-template-columns: 1fr; }
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .topbar { align-items: start; }
+      .topbar { align-items: center; }
       .topbar .quick-row { justify-content: flex-end; }
       .sheet-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; transform: none; }
 
@@ -707,14 +735,32 @@
     }
 
     @media (max-width: 620px) {
-      .main { padding-top: 18px; }
-      .topbar { align-items: center; gap: 10px; margin-bottom: 16px; }
-      .top-actions { gap: 8px; }
-      .top-actions .auth-button { width: 42px; min-width: 42px; padding: 0; }
+      .topbar { gap: 10px; }
+      .top-actions { gap: 7px; }
+      .top-actions .icon-btn,
+      .top-actions .profile-card {
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+        min-height: 36px;
+      }
+      .top-actions .auth-button { padding: 0; }
+      .top-actions .material-symbols-outlined { font-size: 18px; }
       .top-actions .auth-button [data-auth-label] { display: none; }
       .stats-grid, .form-grid, .detail-fields { grid-template-columns: 1fr; }
       .calendar-day { min-height: 38px; border-radius: 11px; }
-      .page-title { font-size: 32px; }
+      .page-title-row { gap: 8px; }
+      .page-logo {
+        width: 40px;
+        height: 40px;
+      }
+      .page-title {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+        font-size: 27px;
+        line-height: 1;
+      }
       .today-metrics { gap: 8px; }
       .metric-card { padding: 12px 10px; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) 32px; }
       .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
@@ -744,7 +790,7 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark"><span class="material-symbols-outlined">monitor_heart</span></div>
+        <div class="brand-mark"><img src="./assets/icons/icon-192.png" alt="" aria-hidden="true"></div>
         <div>
           <h1 class="brand-title">오늘의 기록</h1>
           <p class="brand-subtitle">Daily Health Log</p>
@@ -765,7 +811,10 @@
     <main class="main">
       <header class="topbar">
         <div class="page-heading">
-          <h2 class="page-title" data-page-title>오늘의 기록</h2>
+          <div class="page-title-row">
+            <img class="page-logo" src="./assets/icons/icon-192.png" alt="" aria-hidden="true">
+            <h2 class="page-title" data-page-title>오늘의 기록</h2>
+          </div>
           <p class="page-copy" data-page-copy></p>
         </div>
         <div class="quick-row top-actions">
@@ -841,8 +890,8 @@
               <option value="exercise">운동</option>
               <option value="meal">식사</option>
               <option value="alcohol">음주</option>
-              <option value="mood">우울감</option>
-              <option value="weight">몸무게</option>
+              <option value="mood">마음</option>
+              <option value="weight">무게</option>
               <option value="reading">독서</option>
             </select>
           </div>
@@ -952,8 +1001,8 @@
             <option value="exercise">운동</option>
             <option value="meal">식사</option>
             <option value="alcohol">음주</option>
-            <option value="mood">우울감</option>
-            <option value="weight">몸무게</option>
+            <option value="mood">마음</option>
+            <option value="weight">무게</option>
             <option value="reading">독서</option>
           </select>
         </div>
@@ -982,8 +1031,8 @@
       exercise: { label: "운동", icon: "fitness_center" },
       meal: { label: "식사", icon: "restaurant" },
       alcohol: { label: "음주", icon: "local_bar" },
-      mood: { label: "우울감", icon: "mood" },
-      weight: { label: "몸무게", icon: "monitor_weight" },
+      mood: { label: "마음", icon: "mood" },
+      weight: { label: "무게", icon: "monitor_weight" },
       reading: { label: "독서", icon: "menu_book" }
     };
 
@@ -1001,6 +1050,12 @@
     const chartState = { metric: "exercise" };
     let records = [];
     let toastTimer = 0;
+
+    function metricDisplayLabel(typeKey) {
+      if (typeKey === "mood") return "마음";
+      if (typeKey === "weight") return "무게";
+      return recordTypes[typeKey]?.label || "";
+    }
 
     function todayIsoLocal(offset = 0) {
       const now = new Date();
@@ -1129,25 +1184,33 @@
         return;
       }
 
-      const { data, error } = await supabaseClient.auth.getSession();
+      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+        authState.session = session || null;
+        authState.user = session?.user || null;
+        authState.initialized = true;
+        syncAuthUI();
+        await loadRecords();
+        renderAll();
+      });
+
+      const sessionResult = await Promise.race([
+        supabaseClient.auth.getSession(),
+        new Promise(resolve => setTimeout(() => resolve({ data: { session: null }, error: null, timedOut: true }), 1800))
+      ]);
+      const { data, error, timedOut } = sessionResult;
+      if (timedOut) console.warn("Auth session check timed out. Rendering locked state.");
       if (error) console.warn("Auth session could not be loaded.", error);
       authState.session = data?.session || null;
       authState.user = authState.session?.user || null;
       authState.initialized = true;
       syncAuthUI();
-
-      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-        authState.session = session || null;
-        authState.user = session?.user || null;
-        syncAuthUI();
-        await loadRecords();
-        renderAll();
-      });
     }
 
     function authRedirectUrl() {
       if (window.location.origin && window.location.origin !== "null" && /^https?:$/.test(window.location.protocol)) {
-        return `${window.location.origin}${window.location.pathname}`;
+        const basePath = `${window.location.origin}${window.location.pathname}`;
+        const authVersion = `auth-${Date.now()}`;
+        return `${basePath}?v=${authVersion}`;
       }
       return CONFIG.siteUrl || "http://localhost:4177/";
     }
@@ -1434,12 +1497,12 @@
       if (record.type === "alcohol") return [alcoholLabel(p), p.drinkType || "", p.amount || "", p.memo || ""].filter(Boolean).join(" · ");
       if (record.type === "mood") {
         return [
-          p.level ? `우울감 ${moodLabel(p.level) || p.level}` : "",
+          p.level ? `마음 ${moodLabel(p.level) || p.level}` : "",
           p.workLevel ? `업무 컨디션 ${moodLabel(p.workLevel) || p.workLevel}` : "",
           p.memo || ""
         ].filter(Boolean).join(" · ");
       }
-      if (record.type === "weight") return p.weightKg ? `${p.weightKg}kg` : "몸무게";
+      if (record.type === "weight") return p.weightKg ? `${p.weightKg}kg` : "무게";
       if (record.type === "reading") {
         return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`].join(" · ");
       }
@@ -1503,12 +1566,12 @@
       }
       if (type === "mood") {
         const fragments = [];
-        if (p.level) fragments.push({ kind: "state", label: "우울감", text: moodLabel(p.level) || p.level, level: moodToneLevel(p.level) });
-        if (p.workLevel) fragments.push({ kind: "state", label: "업무 컨디션", text: moodLabel(p.workLevel) || p.workLevel, level: moodToneLevel(p.workLevel) });
-        return fragments.length ? { fragments, empty: false } : { text: "우울감 기록 있음", empty: false };
+        if (p.level) fragments.push({ kind: "state", label: "마음", text: moodLabel(p.level) || p.level, level: moodToneLevel(p.level) });
+        if (p.workLevel) fragments.push({ kind: "state", label: "업무", text: moodLabel(p.workLevel) || p.workLevel, level: moodToneLevel(p.workLevel) });
+        return fragments.length ? { fragments, empty: false } : { text: "마음 기록 있음", empty: false };
       }
       if (type === "weight") {
-        return { text: p.weightKg ? `⚖️ ${p.weightKg}kg` : "몸무게 기록 있음", empty: false };
+        return { text: p.weightKg ? `⚖️ ${p.weightKg}kg` : "무게 기록 있음", empty: false };
       }
       if (type === "reading") {
         const fragments = [
@@ -1540,12 +1603,13 @@
     function selectedDateRecordCardHTML(record) {
       const type = recordTypes[record.type] || recordTypes.exercise;
       const summary = homeMetricSummary(record.type, record);
+      const label = metricDisplayLabel(record.type);
       return `
-        <button class="metric-card has-record" type="button" data-record-id="${escapeHTML(record.id)}" aria-label="${type.label} 수정">
+        <button class="metric-card has-record" type="button" data-record-id="${escapeHTML(record.id)}" aria-label="${label} 수정">
           <span class="metric-icon"><span class="material-symbols-outlined">${type.icon}</span></span>
           <span class="metric-copy">
             <span class="metric-line">
-              <span class="metric-label">${type.label}</span>
+              <span class="metric-label">${label}</span>
               ${metricSummaryHTML(summary)}
             </span>
           </span>
@@ -1562,7 +1626,7 @@
       const metrics = Object.entries(recordTypes).map(([key, item]) => {
         const record = recordForDateType(todayIso, key);
         const summary = homeMetricSummary(key, record);
-        return { key, ...item, ...summary };
+        return { key, ...item, label: metricDisplayLabel(key), ...summary };
       });
 
       document.querySelector("#homeTodayCards").innerHTML = `
@@ -1599,7 +1663,7 @@
         ["주간 운동", `${exerciseMinutes}분`],
         ["주간 독서", `${readingPages}p`],
         ["음주 횟수", `${alcoholCount}회`],
-        ["우울감 평균", moodAverage]
+        ["마음 평균", moodAverage]
       ].map(([label, value]) => `<div class="mini-card"><div class="mini-label">${label}</div><div class="mini-value">${value}</div></div>`).join("");
     }
 
@@ -1628,7 +1692,7 @@
       document.querySelector("#selectedDateTitle").textContent = formatDateKo(state.selectedDate);
       document.querySelector("#selectedDateList").innerHTML = rows.length
         ? rows.map(selectedDateRecordCardHTML).join("")
-        : `<div class="empty">이 날짜에는 아직 기록이 없습니다.<br>운동, 식사, 음주, 우울감, 몸무게, 독서를 항목별로 추가해 보세요.</div>`;
+        : `<div class="empty">이 날짜에는 아직 기록이 없습니다.<br>운동, 식사, 음주, 마음, 무게, 독서를 항목별로 추가해 보세요.</div>`;
     }
 
     function openSelectedPanel() {
@@ -1693,8 +1757,8 @@
       if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType]];
       if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
       if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["마신 양", p.amount], ["메모", p.memo]];
-      if (record.type === "mood") return [["우울감", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
-      if (record.type === "weight") return [["몸무게", p.weightKg ? `${p.weightKg}kg` : ""]];
+      if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
+      if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""]];
       if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""]];
       return [];
     }
@@ -1740,7 +1804,7 @@
         }
       },
       mood: {
-        label: "우울감", icon: "mood", color: "#7f8d67",
+        label: "마음", icon: "mood", color: "#7f8d67",
         axis: { type: "level", ticks: ["매우 나쁨", "나쁨", "보통", "좋음", "매우 좋음"] },
         points(iso) {
           const record = recordForDateType(iso, "mood");
@@ -1751,7 +1815,7 @@
         }
       },
       weight: {
-        label: "몸무게", icon: "monitor_weight", color: "#bf8260",
+        label: "무게", icon: "monitor_weight", color: "#bf8260",
         axis: { type: "numeric", unit: "kg" },
         points(iso) {
           const record = recordForDateType(iso, "weight");
@@ -1880,7 +1944,7 @@
       document.querySelector("#statsCards").innerHTML = [
         ["운동시간", `${exerciseMinutes}분`, "최근 30일"],
         ["독서량", `${readingPages}p`, "최근 30일"],
-        ["우울감 평균", moodAverage, "1~5 단계"],
+        ["마음 평균", moodAverage, "1~5 단계"],
         ["음주 횟수", `${alcoholCount}회`, "최근 30일"]
       ].map(([label, value, meta]) => `<article class="card card-pad"><div class="summary-label">${label}</div><div class="summary-value">${value}</div><p class="section-meta">${meta}</p></article>`).join("");
 
@@ -1927,10 +1991,10 @@
         calendar: ["Calendar", "달력과 선택 날짜 기록을 확인합니다."],
         records: ["Records", "날짜별 기록 카드에서 상세를 열고 수정하거나 삭제할 수 있습니다."],
         detail: ["Record Detail", "선택한 건강 기록의 상세 내용입니다."],
-        stats: ["Stats", "운동시간, 독서량, 우울감 평균, 음주 횟수를 빠르게 봅니다."],
+        stats: ["Stats", "운동시간, 독서량, 마음 평균, 음주 횟수를 빠르게 봅니다."],
         profile: ["Profile", "내 계정과 기본 입력 설정을 확인합니다."]
       };
-      document.querySelector("[data-page-title]").textContent = titles[state.view][0];
+      document.querySelector("[data-page-title]").textContent = "오늘의 기록";
       document.querySelector("[data-page-copy]").textContent = titles[state.view][1];
       document.title = state.view === "home" ? "오늘의 기록" : `${titles[state.view][0]} - 오늘의 기록`;
     }
@@ -2018,12 +2082,12 @@
           ${textareaField("메모", "memo", value("memo"))}
         `,
         mood: `
-          ${choiceField("우울감", "level", [["1", "매우 나쁨"], ["2", "나쁨"], ["3", "보통"], ["4", "좋음"], ["5", "매우 좋음"]], value("level"), { full: true })}
+          ${choiceField("마음", "level", [["1", "매우 나쁨"], ["2", "나쁨"], ["3", "보통"], ["4", "좋음"], ["5", "매우 좋음"]], value("level"), { full: true })}
           ${choiceField("업무 컨디션", "workLevel", [["1", "매우 나쁨"], ["2", "나쁨"], ["3", "보통"], ["4", "좋음"], ["5", "매우 좋음"]], value("workLevel"), { full: true })}
           ${textareaField("메모", "memo", value("memo"))}
         `,
         weight: `
-          ${inputField("몸무게", "weightKg", "number", value("weightKg"), "kg", "0.1")}
+          ${inputField("무게", "weightKg", "number", value("weightKg"), "kg", "0.1")}
         `,
         reading: `
           ${inputField("오늘 읽은 페이지", "todayPages", "number", value("todayPages"), "페이지")}
@@ -2244,10 +2308,15 @@
 
     async function boot() {
       bindEvents();
+      renderAll();
       await initAuth();
       await loadRecords();
       renderAll();
-      if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      if ("serviceWorker" in navigator && ["localhost", "127.0.0.1"].includes(location.hostname)) {
+        navigator.serviceWorker.getRegistrations()
+          .then(registrations => registrations.forEach(registration => registration.unregister()))
+          .catch(error => console.warn("Local service worker cleanup failed.", error));
+      } else if ("serviceWorker" in navigator && location.protocol !== "file:") {
         navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Service worker registration failed.", error));
       }
     }
