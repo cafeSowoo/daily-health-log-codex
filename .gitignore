@@ -1,0 +1,6 @@
+.DS_Store
+.netlify/
+.playwright-mcp/
+env.local.js
+.env.local
+tmp/

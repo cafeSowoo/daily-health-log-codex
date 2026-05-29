@@ -1,0 +1,12 @@
+[build]
+  publish = "."
+  command = """
+cat > env.js <<EOF
+window.CODEX_HEALTH_CONFIG = {
+  supabaseUrl: "${SUPABASE_URL}",
+  supabaseAnonKey: "${SUPABASE_ANON_KEY}",
+  siteUrl: "${SITE_URL:-https://daily-health-log-codex.netlify.app/}",
+  ownerEmail: "${OWNER_EMAIL:-harminis@gmail.com}"
+};
+EOF
+"""

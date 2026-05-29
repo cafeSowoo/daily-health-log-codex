@@ -1,0 +1,12 @@
+{
+  "name": "오늘의 기록",
+  "short_name": "오늘의 기록",
+  "description": "개인용 건강 기록 홈페이지",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8f5f1",
+  "theme_color": "#9b6a4a",
+  "lang": "ko"
+}
