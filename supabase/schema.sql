@@ -17,6 +17,7 @@ create index if not exists codex_records_type_idx
 create or replace function public.codex_set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
