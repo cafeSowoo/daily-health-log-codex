@@ -509,18 +509,16 @@
     }
     .calendar-day:hover { border-color: rgba(155, 106, 74, 0.25); background: #fffaf6; }
     .calendar-day.is-muted { opacity: 0.28; pointer-events: none; }
+    .calendar-day.score-high:not(.selected) { background: #edf7e9; color: #2f6026; border-color: rgba(66, 114, 53, 0.1); }
+    .calendar-day.score-good:not(.selected) { background: #fbf1d4; color: #755016; border-color: rgba(139, 100, 40, 0.1); }
+    .calendar-day.score-mid:not(.selected) { background: #fae5d5; color: #8d4326; border-color: rgba(154, 85, 47, 0.1); }
+    .calendar-day.score-low:not(.selected) { background: #f8dedb; color: #96362c; border-color: rgba(168, 67, 54, 0.1); }
+    .calendar-day.score-high:not(.selected):hover { background: #e5f2df; border-color: rgba(66, 114, 53, 0.2); }
+    .calendar-day.score-good:not(.selected):hover { background: #f6e8bd; border-color: rgba(139, 100, 40, 0.2); }
+    .calendar-day.score-mid:not(.selected):hover { background: #f5dac6; border-color: rgba(154, 85, 47, 0.2); }
+    .calendar-day.score-low:not(.selected):hover { background: #f3d0ca; border-color: rgba(168, 67, 54, 0.2); }
     .calendar-day.is-today { border-color: rgba(155, 106, 74, 0.38); }
     .calendar-day.selected { background: var(--primary); color: #fffaf6; }
-    .calendar-day .dot {
-      position: absolute;
-      left: 50%;
-      bottom: 8px;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: currentColor;
-      transform: translateX(-50%);
-    }
 
     .selected-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .selected-back { display: none; }
@@ -2187,17 +2185,18 @@
       const grid = document.querySelector("#calendarGrid");
       const firstOffset = firstDayOffset(state.currentMonth);
       const totalDays = daysInMonth(state.currentMonth);
-      const recordDates = new Set(records.map(item => item.date));
       const cells = [];
       for (let i = 0; i < firstOffset; i += 1) cells.push(`<button class="calendar-day is-muted" type="button" tabindex="-1"></button>`);
       for (let day = 1; day <= totalDays; day += 1) {
         const dateValue = `${state.currentMonth}-${String(day).padStart(2, "0")}`;
+        const scoreDisplay = scoreDisplayForDate(dateValue);
         const classes = [
           "calendar-day",
+          scoreDisplay.isReady ? scoreDisplay.toneClass : "",
           dateValue === todayIso ? "is-today" : "",
           dateValue === state.selectedDate ? "selected" : ""
         ].filter(Boolean).join(" ");
-        cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}">${day}${recordDates.has(dateValue) ? `<span class="dot"></span>` : ""}</button>`);
+        cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}" aria-label="${formatDateKo(dateValue)}${scoreDisplay.isReady ? ` 점수 ${scoreDisplay.score}점` : ""}">${day}</button>`);
       }
       grid.innerHTML = cells.join("");
     }
