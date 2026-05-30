@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#9b6a4a">
   <meta name="application-name" content="오늘의 기록">
   <meta name="apple-mobile-web-app-title" content="오늘의 기록">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="./favicon.png" type="image/png" sizes="64x64">
@@ -2462,7 +2463,27 @@
       await loadRecords();
       renderAll();
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Service worker registration failed.", error));
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshing || !navigator.serviceWorker.controller) return;
+          refreshing = true;
+          window.location.reload();
+        });
+
+        navigator.serviceWorker.register("./sw.js")
+          .then(registration => {
+            registration.update();
+            registration.addEventListener("updatefound", () => {
+              const worker = registration.installing;
+              if (!worker) return;
+              worker.addEventListener("statechange", () => {
+                if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                  worker.postMessage({ type: "SKIP_WAITING" });
+                }
+              });
+            });
+          })
+          .catch(error => console.warn("Service worker registration failed.", error));
       }
     }
 

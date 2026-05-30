@@ -1,9 +1,6 @@
-const CACHE_NAME = "codex-daily-health-log-20260529-dark-calendar-icon";
+const CACHE_NAME = "codex-daily-health-log-20260530-pwa-auth-refresh";
 const SHELL_ASSETS = [
-  "./",
-  "./index.html",
   "./manifest.webmanifest",
-  "./env.js",
   "./favicon.png",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
