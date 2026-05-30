@@ -2105,7 +2105,7 @@
         ];
         return parts.filter(Boolean).join(" · ") || "식사";
       }
-      if (record.type === "alcohol") return [alcoholLabel(p), p.drinkType || "", p.amount || "", p.memo || ""].filter(Boolean).join(" · ");
+      if (record.type === "alcohol") return [alcoholLabel(p), p.drinkType || "", p.memo || ""].filter(Boolean).join(" · ");
       if (record.type === "mood") {
         return [
           p.level ? `마음 ${moodLabel(p.level) || p.level}` : "",
@@ -2529,7 +2529,7 @@
       const p = record.payload || {};
       if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType], ["메모", p.memo]];
       if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
-      if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["마신 양", p.amount], ["메모", p.memo]];
+      if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["메모", p.memo]];
       if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
       if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
       if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
@@ -3221,7 +3221,6 @@
         alcohol: `
           ${choiceField("음주", "drinkLevel", [["none", "금주"], ["moderate", "적당"], ["heavy", "과음"]], drinkLevel, { full: true })}
           ${choiceField("주종", "drinkType", [["맥주", "맥주"], ["소맥", "소맥"], ["소주", "소주"], ["기타", "기타"]], value("drinkType"), { full: true })}
-          ${inputField("마신 양", "amount", "text", value("amount"), "예: 맥주 1캔")}
           ${textareaField("메모", "memo", value("memo"))}
         `,
         mood: `
@@ -3281,7 +3280,7 @@
       if (type === "meal") return { lunchAmount: get("lunchAmount"), dinnerAmount: get("dinnerAmount"), memo: get("memo") };
       if (type === "alcohol") {
         const drinkLevel = get("drinkLevel") || "none";
-        return { drinkLevel, didDrink: drinkLevel === "none" ? "no" : "yes", drinkType: get("drinkType"), amount: get("amount"), memo: get("memo") };
+        return { drinkLevel, didDrink: drinkLevel === "none" ? "no" : "yes", drinkType: get("drinkType"), memo: get("memo") };
       }
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
       if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
