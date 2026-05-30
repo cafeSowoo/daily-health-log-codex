@@ -1304,6 +1304,7 @@
     const LOCAL_PREVIEW_BYPASS_AUTH = CONFIG.codexLocalPreviewBypassAuth === true;
     const CODEX_RECORDS_KEY = "codex_daily_health_records_v1";
     const CODEX_SETTINGS_KEY = "codex_daily_health_settings_v1";
+    const SUPABASE_REQUEST_TIMEOUT_MS = 12000;
     const supabaseClient = CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && window.supabase
       ? window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey)
       : null;
@@ -1527,6 +1528,46 @@
       };
     }
 
+    function supabaseTimeoutError(message = "Supabase 응답이 지연되고 있습니다. 새로고침 후 다시 저장해 주세요.") {
+      const error = new Error(message);
+      error.name = "SupabaseTimeoutError";
+      return error;
+    }
+
+    async function withTimeout(promise, message, timeoutMs = SUPABASE_REQUEST_TIMEOUT_MS) {
+      let timeoutId;
+      const timeout = new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(supabaseTimeoutError(message)), timeoutMs);
+      });
+      try {
+        return await Promise.race([promise, timeout]);
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    async function supabaseQuery(query, message) {
+      const controller = new AbortController();
+      let timeoutId;
+      const timedQuery = typeof query.abortSignal === "function"
+        ? query.abortSignal(controller.signal)
+        : query;
+      const timeout = new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          controller.abort();
+          reject(supabaseTimeoutError(message));
+        }, SUPABASE_REQUEST_TIMEOUT_MS);
+      });
+      try {
+        return await Promise.race([timedQuery, timeout]);
+      } catch (error) {
+        if (error?.name === "AbortError") throw supabaseTimeoutError(message);
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
     async function initAuth() {
       if (!supabaseClient?.auth) {
         authState.initialized = true;
@@ -1534,19 +1575,30 @@
         return;
       }
 
-      const { data, error } = await supabaseClient.auth.getSession();
+      let data = null;
+      let error = null;
+      try {
+        ({ data, error } = await withTimeout(
+          supabaseClient.auth.getSession(),
+          "로그인 상태 확인이 지연되고 있습니다. 새로고침 후 다시 시도해 주세요."
+        ));
+      } catch (sessionError) {
+        error = sessionError;
+      }
       if (error) console.warn("Auth session could not be loaded.", error);
       authState.session = data?.session || null;
       authState.user = authState.session?.user || null;
       authState.initialized = true;
       syncAuthUI();
 
-      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
         authState.session = session || null;
         authState.user = session?.user || null;
         syncAuthUI();
-        await loadRecords();
-        renderAll();
+        window.setTimeout(async () => {
+          await loadRecords();
+          renderAll();
+        }, 0);
       });
     }
 
@@ -1657,11 +1709,13 @@
 
       if (supabaseClient && isOwnerSignedIn() && !state.remoteFailed) {
         try {
-          const { data, error } = await supabaseClient
+          const { data, error } = await supabaseQuery(supabaseClient
             .from("codex_records")
             .select("*")
             .order("record_date", { ascending: false })
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false }),
+            "Supabase 기록 불러오기가 지연되어 미리보기 저장소로 전환합니다."
+          );
           if (error) throw error;
           records = (data || []).map(fromSupabase);
           state.storageMode = "supabase";
@@ -1690,20 +1744,24 @@
       if (supabaseClient && !canUseLocalFallback()) {
         if (!isOwnerSignedIn()) throw new Error(`${OWNER_EMAIL} 계정으로 로그인해야 저장할 수 있습니다.`);
         if (record.id && records.some(item => item.id === record.id && item.source === "supabase")) {
-          const { data, error } = await supabaseClient
+          const { data, error } = await supabaseQuery(supabaseClient
             .from("codex_records")
             .update(toSupabase(record))
             .eq("id", record.id)
             .select("*")
-            .single();
+            .single(),
+            "Supabase 저장 응답이 지연되고 있습니다. 새로고침 후 다시 저장해 주세요."
+          );
           if (error) throw error;
           return fromSupabase(data);
         }
-        const { data, error } = await supabaseClient
+        const { data, error } = await supabaseQuery(supabaseClient
           .from("codex_records")
           .insert(toSupabase(record))
           .select("*")
-          .single();
+          .single(),
+          "Supabase 저장 응답이 지연되고 있습니다. 새로고침 후 다시 저장해 주세요."
+        );
         if (error) throw error;
         return fromSupabase(data);
       }
@@ -1730,7 +1788,10 @@
 
       if (supabaseClient && !canUseLocalFallback() && record.source === "supabase") {
         if (!isOwnerSignedIn()) throw new Error(`${OWNER_EMAIL} 계정으로 로그인해야 삭제할 수 있습니다.`);
-        const { error } = await supabaseClient.from("codex_records").delete().eq("id", id);
+        const { error } = await supabaseQuery(
+          supabaseClient.from("codex_records").delete().eq("id", id),
+          "Supabase 삭제 응답이 지연되고 있습니다. 새로고침 후 다시 시도해 주세요."
+        );
         if (error) throw error;
       } else {
         saveLocalRecords(localRecords().filter(item => item.id !== id));
