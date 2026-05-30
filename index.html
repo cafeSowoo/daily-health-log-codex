@@ -1124,10 +1124,10 @@
           </article>
 
           <aside class="card card-pad" id="selectedDatePanel">
-            <div class="calendar-head date-navigator">
+            <div class="calendar-head date-navigator" data-panel-dismiss-zone>
               <div class="selected-head-left">
                 <button class="btn icon-btn selected-back" type="button" data-selected-close aria-label="달력으로 돌아가기"><span class="material-symbols-outlined">arrow_back</span></button>
-                <div class="date-title-wrap" data-panel-dismiss-zone>
+                <div class="date-title-wrap">
                   <h3 class="section-title" id="selectedDateTitle">오늘</h3>
                 </div>
               </div>
@@ -2244,11 +2244,13 @@
       panel.classList.remove("is-panel-dragging");
       panel.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
       panel.style.transform = "translateY(0)";
+      panel.style.webkitTransform = "translateY(0)";
       panel.style.opacity = "1";
       window.setTimeout(() => {
         if (document.body.classList.contains("selected-date-active")) {
           panel.style.transition = "";
           panel.style.transform = "";
+          panel.style.webkitTransform = "";
           panel.style.opacity = "";
         }
       }, 180);
@@ -2269,7 +2271,9 @@
     function beginSelectedPanelDismiss(panel, dy) {
       panel.classList.add("is-panel-dragging");
       panel.style.transition = "none";
-      panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      const transform = `translateY(${Math.max(0, dy)}px)`;
+      panel.style.transform = transform;
+      panel.style.webkitTransform = transform;
       panel.style.opacity = String(Math.max(0.72, 1 - dy / 320));
     }
 
@@ -2291,11 +2295,13 @@
       panel.classList.remove("is-panel-dragging");
       panel.style.transition = "transform 0.24s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease";
       panel.style.transform = "translateY(110%)";
+      panel.style.webkitTransform = "translateY(110%)";
       panel.style.opacity = "0";
       window.setTimeout(() => {
         closeSelectedPanel();
         panel.style.transition = "";
         panel.style.transform = "";
+        panel.style.webkitTransform = "";
         panel.style.opacity = "";
       }, 240);
     }
@@ -2307,6 +2313,7 @@
         panel.classList.remove("is-panel-dragging");
         panel.style.transition = "";
         panel.style.transform = "";
+        panel.style.webkitTransform = "";
         panel.style.opacity = "";
         const list = panel.querySelector("#selectedDateList");
         if (list) list.scrollTop = 0;
@@ -3354,6 +3361,8 @@
 
     function bindEvents() {
       let selectedPanelDrag = null;
+      let selectedPanelTouchDrag = null;
+      let suppressSelectedPanelClick = false;
       let homeSwipeStart = null;
       const selectedDatePanel = document.querySelector("#selectedDatePanel");
 
@@ -3378,9 +3387,114 @@
         state.typeFilter = event.target.value;
         renderRecords();
       });
+      selectedDatePanel.addEventListener("click", event => {
+        if (!suppressSelectedPanelClick) return;
+        event.preventDefault();
+        event.stopPropagation();
+        suppressSelectedPanelClick = false;
+      }, true);
+      selectedDatePanel.addEventListener("touchstart", event => {
+        if (!isCalendarPanelMobile()) return;
+        if (!document.body.classList.contains("selected-date-active")) return;
+        if (event.touches.length !== 1) return;
+        if (event.target.closest("input, select, textarea, a")) return;
+
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+        const touch = event.touches[0];
+        const startScrollTop = list ? list.scrollTop : 0;
+        const touchedList = event.target.closest("#selectedDateList");
+        const onDismissZone = event.target.closest("[data-panel-dismiss-zone]");
+        if (event.target.closest("button") && !touchedList) return;
+
+        selectedPanelTouchDrag = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          mode: null,
+          canDismiss: Boolean(onDismissZone) || (Boolean(touchedList) && startScrollTop <= 0)
+        };
+      }, { passive: true });
+      selectedDatePanel.addEventListener("touchmove", event => {
+        if (!selectedPanelTouchDrag || event.touches.length !== 1) return;
+
+        const touch = event.touches[0];
+        const dx = touch.clientX - selectedPanelTouchDrag.startX;
+        const dy = touch.clientY - selectedPanelTouchDrag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+
+        if (!selectedPanelTouchDrag.mode) {
+          if (absDx < 5 && absDy < 5) return;
+          if (absDx > absDy * 1.15) {
+            selectedPanelTouchDrag.mode = "horizontal";
+          } else if (dy > 0 && absDy > absDx * 1.15 && selectedPanelTouchDrag.canDismiss) {
+            selectedPanelTouchDrag.mode = "dismiss";
+          } else {
+            selectedPanelTouchDrag = null;
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+
+        if (selectedPanelTouchDrag.mode === "dismiss") {
+          beginSelectedPanelDismiss(selectedDatePanel, Math.max(0, dy));
+        } else if (selectedPanelTouchDrag.mode === "horizontal") {
+          beginSelectedPanelHorizontal(selectedDatePanel, list, dx);
+        }
+      }, { passive: false });
+      selectedDatePanel.addEventListener("touchend", event => {
+        if (!selectedPanelTouchDrag) return;
+
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - selectedPanelTouchDrag.startX;
+        const dy = touch.clientY - selectedPanelTouchDrag.startY;
+        const mode = selectedPanelTouchDrag.mode;
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+        selectedPanelTouchDrag = null;
+        selectedDatePanel.classList.remove("is-panel-dragging");
+
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+          suppressSelectedPanelClick = true;
+          suppressSwipeClickUntil = Date.now() + 350;
+          window.setTimeout(() => { suppressSelectedPanelClick = false; }, 250);
+        }
+
+        if (mode === "dismiss") {
+          if (dy >= selectedPanelDismissThreshold(selectedDatePanel)) {
+            closeSelectedPanelFromSwipe();
+          } else {
+            restoreSelectedPanelPosition(selectedDatePanel);
+          }
+          return;
+        }
+
+        if (mode === "horizontal") {
+          if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+            if (list) {
+              list.style.transition = "";
+              list.style.transform = "";
+              list.style.opacity = "";
+            }
+            moveSelectedDate(dx < 0 ? 1 : -1);
+          } else {
+            restoreSelectedPanelList(list);
+          }
+        }
+      }, { passive: true });
+      selectedDatePanel.addEventListener("touchcancel", () => {
+        if (!selectedPanelTouchDrag) return;
+        const mode = selectedPanelTouchDrag.mode;
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+        selectedPanelTouchDrag = null;
+        if (mode === "dismiss") restoreSelectedPanelPosition(selectedDatePanel);
+        if (mode === "horizontal") restoreSelectedPanelList(list);
+        selectedDatePanel.classList.remove("is-panel-dragging");
+      }, { passive: true });
       selectedDatePanel.addEventListener("pointerdown", event => {
         if (!isCalendarPanelMobile()) return;
         if (!document.body.classList.contains("selected-date-active")) return;
+        if (event.pointerType === "touch") return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
         if (event.target.closest("input, select, textarea")) return;
 
