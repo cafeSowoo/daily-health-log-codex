@@ -494,6 +494,11 @@
 
     .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .calendar-head > .quick-row { flex-wrap: nowrap; flex-shrink: 0; }
+    .calendar-card {
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     .weekday-grid, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
     .weekday-grid { margin-bottom: 8px; color: var(--faint); font-size: 11px; font-weight: 800; text-align: center; }
     .calendar-day {
@@ -506,6 +511,7 @@
       color: var(--text);
       font-size: 13px;
       font-weight: 800;
+      touch-action: pan-y;
     }
     .calendar-day:hover { border-color: rgba(155, 106, 74, 0.25); background: #fffaf6; }
     .calendar-day.is-muted { opacity: 0.28; pointer-events: none; }
