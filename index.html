@@ -1106,11 +1106,10 @@
 
       <section id="calendar" class="view">
         <div class="grid home-grid" id="calendarLayout">
-          <article class="card card-pad">
+          <article class="card card-pad calendar-card" id="calendarCard">
             <div class="calendar-head">
               <div>
                 <h3 class="section-title" id="calendarMonthTitle">May. 2026</h3>
-                <p class="section-meta">기록이 있는 날짜에는 점이 표시됩니다.</p>
               </div>
               <div class="quick-row">
                 <button class="btn icon-btn" type="button" data-month-prev aria-label="이전 달"><span class="material-symbols-outlined">chevron_left</span></button>
@@ -1328,6 +1327,8 @@
     };
     const authState = { initialized: false, session: null, user: null };
     const chartState = { metric: "exercise" };
+    let calendarDrag = null;
+    let suppressCalendarClick = false;
     let records = [];
     let toastTimer = 0;
     let suppressSwipeClickUntil = 0;
@@ -2199,6 +2200,12 @@
         cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}">${day}${recordDates.has(dateValue) ? `<span class="dot"></span>` : ""}</button>`);
       }
       grid.innerHTML = cells.join("");
+    }
+
+    function changeCalendarMonth(delta) {
+      state.currentMonth = addMonths(state.currentMonth, delta);
+      renderCalendar();
+      if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
     }
 
     function renderSelectedDate() {
@@ -3312,13 +3319,11 @@
         return;
       }
       if (event.target.closest("[data-month-prev]")) {
-        state.currentMonth = addMonths(state.currentMonth, -1);
-        renderCalendar();
+        changeCalendarMonth(-1);
         return;
       }
       if (event.target.closest("[data-month-next]")) {
-        state.currentMonth = addMonths(state.currentMonth, 1);
-        renderCalendar();
+        changeCalendarMonth(1);
         return;
       }
       if (event.target.closest("[data-selected-close]")) {
@@ -3615,6 +3620,57 @@
         homeSwipeStart = null;
         try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
       });
+      const calendarCard = document.querySelector("#calendarCard");
+      if (calendarCard) {
+        const resetCalendarDrag = () => { calendarDrag = null; };
+        calendarCard.addEventListener("pointerdown", event => {
+          if (!window.matchMedia("(max-width: 980px)").matches) return;
+          if (document.body.classList.contains("selected-date-active")) return;
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          if (event.target.closest("[data-month-prev], [data-month-next]")) return;
+          calendarDrag = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            isHorizontal: false
+          };
+          try { calendarCard.setPointerCapture(event.pointerId); } catch (_) {}
+        });
+        calendarCard.addEventListener("pointermove", event => {
+          if (!calendarDrag || calendarDrag.pointerId !== event.pointerId) return;
+          const dx = event.clientX - calendarDrag.startX;
+          const dy = event.clientY - calendarDrag.startY;
+          if (Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+            calendarDrag.isHorizontal = true;
+            if (event.cancelable) event.preventDefault();
+          }
+        });
+        calendarCard.addEventListener("pointerup", event => {
+          if (!calendarDrag || calendarDrag.pointerId !== event.pointerId) return;
+          const dx = event.clientX - calendarDrag.startX;
+          const dy = event.clientY - calendarDrag.startY;
+          const pointerId = calendarDrag.pointerId;
+          calendarDrag = null;
+          try { calendarCard.releasePointerCapture(pointerId); } catch (_) {}
+          if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+            suppressCalendarClick = true;
+            changeCalendarMonth(dx < 0 ? 1 : -1);
+            window.setTimeout(() => { suppressCalendarClick = false; }, 250);
+          }
+        });
+        calendarCard.addEventListener("pointercancel", event => {
+          if (calendarDrag?.pointerId === event.pointerId) {
+            try { calendarCard.releasePointerCapture(event.pointerId); } catch (_) {}
+            resetCalendarDrag();
+          }
+        });
+        calendarCard.addEventListener("click", event => {
+          if (!suppressCalendarClick) return;
+          event.preventDefault();
+          event.stopPropagation();
+          suppressCalendarClick = false;
+        }, true);
+      }
       const onViewportChange = () => {
         if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
       };
