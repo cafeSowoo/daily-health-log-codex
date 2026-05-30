@@ -1233,19 +1233,6 @@
           <div class="chart-toggle" id="statsChartToggle"></div>
           <div class="chart-canvas" id="statsChartArea"></div>
         </article>
-        <div class="grid stats-grid" id="statsCards"></div>
-        <div class="grid two-grid" style="margin-top:18px;">
-          <article class="card card-pad">
-            <h3 class="section-title">유형별 기록 수</h3>
-            <p class="section-meta">최근 30일 기준</p>
-            <div id="typeChart"></div>
-          </article>
-          <article class="card card-pad">
-            <h3 class="section-title">최근 7일 흐름</h3>
-            <p class="section-meta">날짜별 기록 개수</p>
-            <div id="dailyChart"></div>
-          </article>
-        </div>
       </section>
 
       <section id="profile" class="view">
@@ -2722,34 +2709,6 @@
 
     function renderStats() {
       renderStatsChart();
-      const last30 = recordsInLastDays(30);
-      const exerciseMinutes = last30.filter(r => r.type === "exercise").reduce((sum, r) => sum + Number(r.payload?.durationMinutes || 0), 0);
-      const readingPages = last30.filter(r => r.type === "reading").reduce((sum, r) => sum + Number(r.payload?.todayPages || 0), 0);
-      const moodRows = last30.filter(r => r.type === "mood" && Number(r.payload?.level));
-      const moodAverage = moodRows.length ? (moodRows.reduce((sum, r) => sum + Number(r.payload.level), 0) / moodRows.length).toFixed(1) : "-";
-      const alcoholCount = last30.filter(r => r.type === "alcohol" && hasAlcohol(r.payload)).length;
-      document.querySelector("#statsCards").innerHTML = [
-        ["운동시간", `${exerciseMinutes}분`, "최근 30일"],
-        ["독서량", `${readingPages}p`, "최근 30일"],
-        ["마음 평균", moodAverage, "1~5 단계"],
-        ["음주 횟수", `${alcoholCount}회`, "최근 30일"]
-      ].map(([label, value, meta]) => `<article class="card card-pad"><div class="summary-label">${label}</div><div class="summary-value">${value}</div><p class="section-meta">${meta}</p></article>`).join("");
-
-      const typeCounts = Object.keys(recordTypes).map(type => [type, last30.filter(r => r.type === type).length]);
-      const maxType = Math.max(1, ...typeCounts.map(([, count]) => count));
-      document.querySelector("#typeChart").innerHTML = typeCounts.map(([type, count]) => chartRow(recordTypes[type].label, count, maxType)).join("");
-
-      const dailyRows = Array.from({ length: 7 }, (_, index) => {
-        const date = todayIsoLocal(index - 6);
-        return [date.slice(5), recordsForDate(date).length];
-      });
-      const maxDay = Math.max(1, ...dailyRows.map(([, count]) => count));
-      document.querySelector("#dailyChart").innerHTML = dailyRows.map(([label, count]) => chartRow(label, count, maxDay)).join("");
-    }
-
-    function chartRow(label, count, max) {
-      const width = Math.max(4, Math.round((count / max) * 100));
-      return `<div class="chart-row"><div class="chart-label">${label}</div><div class="chart-track"><div class="chart-fill" style="width:${width}%"></div></div><div class="chart-value">${count}</div></div>`;
     }
 
     function renderProfile() {
