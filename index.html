@@ -351,11 +351,40 @@
     .summary-value { margin: 8px 0 2px; font-size: 24px; font-weight: 800; }
 
     .today-date-label {
-      margin: 0 0 10px;
+      margin: 0;
       color: #57463c;
       font-size: 13px;
       font-weight: 850;
     }
+    .home-date-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+      touch-action: pan-y;
+    }
+    .home-date-main {
+      min-width: 0;
+      flex: 1;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fffaf6;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 850;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .home-date-main.is-today {
+      border-color: rgba(155, 106, 74, 0.36);
+      background: var(--primary-soft);
+      color: var(--primary-dark);
+    }
+    .home-date-today { min-height: 38px; padding: 0 12px; }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -408,6 +437,22 @@
 
     .selected-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .selected-back { display: none; }
+    .date-navigator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+    .date-title-wrap { min-width: 0; }
+    .date-title-wrap .section-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .date-nav-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .date-today-btn { min-height: 38px; padding: 0 12px; }
 
     .record-list { display: grid; gap: 10px; }
     .selected-date-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
@@ -724,6 +769,7 @@
         transform: translateY(16px);
         opacity: 0;
         pointer-events: none;
+        touch-action: pan-y;
         transition: transform 0.34s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.28s ease;
       }
       body.selected-date-active #selectedDatePanel {
@@ -766,6 +812,13 @@
       .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
       .metric-card .metric-summary { font-size: 15px; }
       .metric-add { width: 32px; height: 32px; min-height: 32px; }
+      .date-navigator { gap: 6px; }
+      .date-nav-actions { gap: 6px; }
+      .date-today-btn { min-height: 36px; padding: 0 10px; }
+      #selectedDateTitle { font-size: 17px; }
+      .home-date-nav { gap: 6px; }
+      .home-date-main { min-height: 36px; padding: 0 10px; font-size: 12px; }
+      .home-date-today { min-height: 36px; padding: 0 10px; }
       .chart-toggle {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -865,12 +918,17 @@
           </article>
 
           <aside class="card card-pad" id="selectedDatePanel">
-            <div class="calendar-head">
+            <div class="calendar-head date-navigator">
               <div class="selected-head-left">
                 <button class="btn icon-btn selected-back" type="button" data-selected-close aria-label="달력으로 돌아가기"><span class="material-symbols-outlined">arrow_back</span></button>
-                <div>
+                <div class="date-title-wrap">
                   <h3 class="section-title" id="selectedDateTitle">오늘</h3>
                 </div>
+              </div>
+              <div class="date-nav-actions" aria-label="선택 날짜 이동">
+                <button class="btn icon-btn" type="button" data-date-prev aria-label="전날"><span class="material-symbols-outlined">chevron_left</span></button>
+                <button class="btn btn-ghost date-today-btn" type="button" data-date-today>오늘</button>
+                <button class="btn icon-btn" type="button" data-date-next aria-label="다음날"><span class="material-symbols-outlined">chevron_right</span></button>
               </div>
             </div>
             <div id="selectedDateList" class="record-list selected-date-list"></div>
@@ -1041,6 +1099,7 @@
       view: "home",
       currentMonth: todayIso.slice(0, 7),
       selectedDate: todayIso,
+      homeDate: todayIso,
       selectedId: "",
       typeFilter: "all",
       storageMode: supabaseClient ? "supabase" : "local-preview",
@@ -1050,6 +1109,7 @@
     const chartState = { metric: "exercise" };
     let records = [];
     let toastTimer = 0;
+    let suppressSwipeClickUntil = 0;
 
     function metricDisplayLabel(typeKey) {
       if (typeKey === "mood") return "마음";
@@ -1087,6 +1147,33 @@
       const [year, month] = monthValue.split("-").map(Number);
       const date = new Date(year, month - 1 + delta, 1);
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function addDays(dateValue, delta) {
+      const date = new Date(`${dateValue}T00:00:00`);
+      date.setDate(date.getDate() + delta);
+      return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+    }
+
+    function setSelectedDate(dateValue, { openPanel = true } = {}) {
+      state.selectedDate = dateValue;
+      state.currentMonth = dateValue.slice(0, 7);
+      renderCalendar();
+      renderSelectedDate();
+      if (openPanel) openSelectedPanel();
+    }
+
+    function moveSelectedDate(delta) {
+      setSelectedDate(addDays(state.selectedDate, delta));
+    }
+
+    function setHomeDate(dateValue) {
+      state.homeDate = dateValue;
+      renderHome();
+    }
+
+    function moveHomeDate(delta) {
+      setHomeDate(addDays(state.homeDate, delta));
     }
 
     function daysInMonth(monthValue) {
@@ -1401,15 +1488,16 @@
       return records.filter(item => new Date(`${item.date}T00:00:00`) >= start);
     }
 
-    function startOfWeekIso() {
-      const date = new Date(`${todayIso}T00:00:00`);
+    function startOfWeekIso(baseDate = todayIso) {
+      const date = new Date(`${baseDate}T00:00:00`);
       date.setDate(date.getDate() - date.getDay());
       return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
     }
 
-    function recordsThisWeek() {
-      const start = startOfWeekIso();
-      return records.filter(item => item.date >= start && item.date <= todayIso);
+    function recordsThisWeek(baseDate = todayIso) {
+      const start = startOfWeekIso(baseDate);
+      const end = addDays(start, 6);
+      return records.filter(item => item.date >= start && item.date <= end);
     }
 
     function alcoholLevel(payload = {}) {
@@ -1615,14 +1703,23 @@
     }
 
     function renderHomeTodayCards() {
+      const homeDate = state.homeDate;
+      const isToday = homeDate === todayIso;
       const metrics = Object.entries(recordTypes).map(([key, item]) => {
-        const record = recordForDateType(todayIso, key);
+        const record = recordForDateType(homeDate, key);
         const summary = homeMetricSummary(key, record);
         return { key, ...item, label: metricDisplayLabel(key), ...summary };
       });
 
       document.querySelector("#homeTodayCards").innerHTML = `
-        <p class="today-date-label">${formatDateKo(todayIso)}</p>
+        <div class="home-date-nav" aria-label="Home 기준 날짜 이동">
+          <button class="btn icon-btn" type="button" data-home-date-prev aria-label="전날"><span class="material-symbols-outlined">chevron_left</span></button>
+          <button class="home-date-main ${isToday ? "is-today" : ""}" type="button" data-home-date-calendar aria-label="${formatDateKo(homeDate)} 달력에서 보기">
+            <span class="today-date-label">${formatDateKo(homeDate)}${isToday ? " · 오늘" : ""}</span>
+          </button>
+          <button class="btn btn-ghost home-date-today" type="button" data-home-date-today>오늘</button>
+          <button class="btn icon-btn" type="button" data-home-date-next aria-label="다음날"><span class="material-symbols-outlined">chevron_right</span></button>
+        </div>
         <div class="today-metrics">
           ${metrics.map(m => `
             <button class="metric-card ${m.empty ? "is-empty" : "has-record"}" type="button" data-quick-type="${m.key}" aria-label="${m.label} ${m.empty ? "입력" : "수정"}">
@@ -1643,14 +1740,14 @@
     }
 
     function renderHomeWeek() {
-      const weekRows = recordsThisWeek();
+      const weekRows = recordsThisWeek(state.homeDate);
       const exerciseMinutes = sumPayload(weekRows, "exercise", "durationMinutes");
       const readingPages = sumPayload(weekRows, "reading", "todayPages");
       const alcoholCount = weekRows.filter(r => r.type === "alcohol" && hasAlcohol(r.payload)).length;
       const moodRows = weekRows.filter(r => r.type === "mood" && Number(r.payload?.level));
       const moodAverage = moodRows.length ? (moodRows.reduce((sum, r) => sum + Number(r.payload.level), 0) / moodRows.length).toFixed(1) : "—";
 
-      document.querySelector("#homeWeekMeta").textContent = `${formatDateKo(startOfWeekIso())}부터`;
+      document.querySelector("#homeWeekMeta").textContent = `${formatDateKo(startOfWeekIso(state.homeDate))}부터`;
       document.querySelector("#homeWeek").innerHTML = [
         ["주간 운동", `${exerciseMinutes}분`],
         ["주간 독서", `${readingPages}p`],
@@ -2174,6 +2271,7 @@
         records.sort(compareRecords);
         state.selectedDate = saved.date;
         state.currentMonth = saved.date.slice(0, 7);
+        state.homeDate = saved.date;
         closeSheet();
         renderAll();
         showToast("기록을 저장했습니다.");
@@ -2190,6 +2288,11 @@
     }
 
     function handleDocumentClick(event) {
+      if (Date.now() < suppressSwipeClickUntil && event.target.closest("#homeTodayCards, #selectedDatePanel")) {
+        event.preventDefault();
+        return;
+      }
+
       const chartMetricButton = event.target.closest("[data-chart-metric]");
       if (chartMetricButton) {
         chartState.metric = chartMetricButton.dataset.chartMetric;
@@ -2213,7 +2316,24 @@
 
       const quickType = event.target.closest("[data-quick-type]");
       if (quickType) {
-        openSheet({ date: todayIso, type: quickType.dataset.quickType });
+        openSheet({ date: state.homeDate, type: quickType.dataset.quickType });
+        return;
+      }
+      if (event.target.closest("[data-home-date-prev]")) {
+        moveHomeDate(-1);
+        return;
+      }
+      if (event.target.closest("[data-home-date-next]")) {
+        moveHomeDate(1);
+        return;
+      }
+      if (event.target.closest("[data-home-date-today]")) {
+        setHomeDate(todayIso);
+        return;
+      }
+      if (event.target.closest("[data-home-date-calendar]")) {
+        switchView("calendar");
+        setSelectedDate(state.homeDate);
         return;
       }
       if (event.target.closest("[data-profile-button]")) {
@@ -2251,22 +2371,28 @@
         closeSelectedPanel();
         return;
       }
+      if (event.target.closest("[data-date-prev]")) {
+        moveSelectedDate(-1);
+        return;
+      }
+      if (event.target.closest("[data-date-next]")) {
+        moveSelectedDate(1);
+        return;
+      }
+      if (event.target.closest("[data-date-today]")) {
+        setSelectedDate(todayIso);
+        return;
+      }
       const dateButton = event.target.closest("[data-calendar-date]");
       if (dateButton) {
-        state.selectedDate = dateButton.dataset.calendarDate;
-        renderCalendar();
-        renderSelectedDate();
-        openSelectedPanel();
+        setSelectedDate(dateButton.dataset.calendarDate);
         return;
       }
       const jump = event.target.closest("[data-jump-date]");
       if (jump) {
-        state.selectedDate = jump.dataset.jumpDate === "yesterday" ? todayIsoLocal(-1) : todayIso;
-        state.currentMonth = state.selectedDate.slice(0, 7);
+        const targetDate = jump.dataset.jumpDate === "yesterday" ? todayIsoLocal(-1) : todayIso;
         switchView("calendar");
-        renderCalendar();
-        renderSelectedDate();
-        openSelectedPanel();
+        setSelectedDate(targetDate);
         return;
       }
       const authButton = event.target.closest("[data-auth-button]");
@@ -2280,12 +2406,14 @@
     }
 
     function bindEvents() {
+      let selectedSwipeStart = null;
+      let homeSwipeStart = null;
       document.addEventListener("click", handleDocumentClick);
       document.addEventListener("keydown", event => {
         const quickCard = event.target.closest(".metric-card[data-quick-type]");
         if (!quickCard || !["Enter", " "].includes(event.key)) return;
         event.preventDefault();
-        openSheet({ date: todayIso, type: quickCard.dataset.quickType });
+        openSheet({ date: state.homeDate, type: quickCard.dataset.quickType });
       });
       document.querySelector("#recordType").addEventListener("change", () => {
         renderSheetTypeBadge();
@@ -2295,6 +2423,36 @@
       document.querySelector("#recordTypeFilter").addEventListener("change", event => {
         state.typeFilter = event.target.value;
         renderRecords();
+      });
+      document.querySelector("#selectedDatePanel").addEventListener("pointerdown", event => {
+        selectedSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+      });
+      document.querySelector("#selectedDatePanel").addEventListener("pointerup", event => {
+        if (!selectedSwipeStart || selectedSwipeStart.pointerId !== event.pointerId) return;
+        const dx = event.clientX - selectedSwipeStart.x;
+        const dy = event.clientY - selectedSwipeStart.y;
+        selectedSwipeStart = null;
+        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+        suppressSwipeClickUntil = Date.now() + 350;
+        moveSelectedDate(dx < 0 ? 1 : -1);
+      });
+      document.querySelector("#selectedDatePanel").addEventListener("pointercancel", () => {
+        selectedSwipeStart = null;
+      });
+      document.querySelector("#homeTodayCards").addEventListener("pointerdown", event => {
+        homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+      });
+      document.querySelector("#homeTodayCards").addEventListener("pointerup", event => {
+        if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
+        const dx = event.clientX - homeSwipeStart.x;
+        const dy = event.clientY - homeSwipeStart.y;
+        homeSwipeStart = null;
+        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+        suppressSwipeClickUntil = Date.now() + 350;
+        moveHomeDate(dx < 0 ? 1 : -1);
+      });
+      document.querySelector("#homeTodayCards").addEventListener("pointercancel", () => {
+        homeSwipeStart = null;
       });
     }
 
