@@ -252,8 +252,75 @@
       display: grid;
       gap: 12px;
       margin-bottom: 18px;
+      touch-action: pan-y;
     }
-    .today-metrics { display: grid; gap: 10px; }
+    .today-metrics {
+      display: grid;
+      gap: 0;
+      background: var(--surface-solid);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .today-metrics .metric-card {
+      background: var(--surface-solid);
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      border-bottom: 1px solid var(--line);
+    }
+    .today-metrics .metric-card:last-child { border-bottom: none; }
+    .today-overview { overflow-x: clip; }
+    #calendarLayout {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+    }
+    #selectedDatePanel {
+      display: none;
+      overflow-x: clip;
+      touch-action: pan-y;
+      background: rgba(255, 253, 251, 0.92);
+    }
+    #selectedDatePanel .date-navigator {
+      padding: 0 20px;
+    }
+    #selectedDatePanel #selectedDateList {
+      padding: 0 0 18px;
+    }
+    #selectedDatePanel .metric-card {
+      width: min(330px, 100%);
+      justify-self: center;
+    }
+    body.selected-date-active #calendar.active #selectedDatePanel { display: block; }
+    @keyframes hl-exit-left {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(-58%); opacity: 0; }
+    }
+    @keyframes hl-exit-right {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(58%); opacity: 0; }
+    }
+    @keyframes hl-enter-right {
+      from { transform: translateX(58%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes hl-enter-left {
+      from { transform: translateX(-58%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .hl-exit-left { animation: hl-exit-left 0.1s cubic-bezier(0.4, 0, 1, 1) forwards; }
+    .hl-exit-right { animation: hl-exit-right 0.1s cubic-bezier(0.4, 0, 1, 1) forwards; }
+    .hl-enter-right { animation: hl-enter-right 0.17s cubic-bezier(0.16, 0.84, 0.44, 1); }
+    .hl-enter-left { animation: hl-enter-left 0.17s cubic-bezier(0.16, 0.84, 0.44, 1); }
+    @keyframes hl-panel-rise {
+      from { transform: translateY(48px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hl-exit-left, .hl-exit-right, .hl-enter-right, .hl-enter-left { animation: none; }
+      body.selected-date-active #calendar.active #selectedDatePanel { animation: none; }
+    }
     .metric-card {
       width: 100%;
       display: grid;
@@ -455,9 +522,26 @@
     .date-nav-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .date-today-btn { min-height: 38px; padding: 0 12px; }
 
-    .record-list { display: grid; gap: 10px; }
-    .selected-date-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
-    .records-list .metric-card { box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06); }
+    .record-list { display: grid; align-content: start; grid-auto-rows: max-content; gap: 10px; }
+    #selectedDatePanel.card-pad {
+      padding-left: 0;
+      padding-right: 0;
+      padding-bottom: 0;
+    }
+    .selected-date-list .metric-card,
+    .records-list .metric-card {
+      height: 58px;
+      min-height: 58px;
+      max-height: 58px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06);
+    }
+    .selected-date-list .metric-line,
+    .records-list .metric-line,
+    .selected-date-list .metric-pills,
+    .records-list .metric-pills { flex-wrap: nowrap; }
     .record-card {
       width: 100%;
       border: 1px solid var(--line);
@@ -758,27 +842,33 @@
       .selected-back { display: inline-flex; align-items: center; justify-content: center; }
       #selectedDatePanel {
         position: absolute;
-        top: 0;
+        top: var(--panel-top, 64px);
         left: 0;
         right: 0;
+        bottom: auto;
         z-index: 30;
-        min-height: 100%;
+        flex-direction: column;
+        min-height: 0;
         max-height: none;
-        overflow: visible;
+        overflow: hidden;
+        overflow-x: clip;
         scrollbar-width: none;
+        background: rgba(255, 253, 251, 0.94);
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
-        transform: translateY(16px);
-        opacity: 0;
-        pointer-events: none;
         touch-action: pan-y;
-        transition: transform 0.34s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.28s ease;
       }
-      body.selected-date-active #selectedDatePanel {
-        transform: translateY(0);
-        opacity: 1;
-        pointer-events: auto;
+      #selectedDatePanel .date-navigator { flex: 0 0 auto; }
+      #selectedDatePanel #selectedDateList {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: clip;
+        scrollbar-width: none;
       }
-      body.selected-date-active { overflow: hidden; }
+      body.selected-date-active #calendar.active #selectedDatePanel {
+        display: flex;
+        animation: hl-panel-rise 0.32s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
     }
 
     @media (max-width: 620px) {
@@ -808,7 +898,6 @@
         font-size: 27px;
         line-height: 1;
       }
-      .today-metrics { gap: 8px; }
       .metric-card { padding: 12px 10px; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) 32px; }
       .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
       .metric-card .metric-summary { font-size: 15px; }
@@ -1094,6 +1183,7 @@
       weight: { label: "무게", icon: "monitor_weight" },
       reading: { label: "독서", icon: "menu_book" }
     };
+    const RECORD_TYPE_ORDER = ["exercise", "meal", "alcohol", "mood", "weight", "reading"];
 
     const todayIso = todayIsoLocal();
     const state = {
@@ -1156,25 +1246,55 @@
       return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
     }
 
-    function setSelectedDate(dateValue, { openPanel = true } = {}) {
+    const HL_ANIM_CLASSES = ["hl-exit-left", "hl-exit-right", "hl-enter-right", "hl-enter-left"];
+
+    function transitionDateView(selector, render, direction) {
+      const current = document.querySelector(selector);
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!direction || !current || reduce) {
+        render();
+        return;
+      }
+      const exitClass = direction > 0 ? "hl-exit-left" : "hl-exit-right";
+      const enterClass = direction > 0 ? "hl-enter-right" : "hl-enter-left";
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        render();
+        const next = document.querySelector(selector);
+        if (!next) return;
+        next.classList.remove(...HL_ANIM_CLASSES);
+        void next.offsetWidth;
+        next.classList.add(enterClass);
+        next.addEventListener("animationend", () => next.classList.remove(enterClass), { once: true });
+      };
+      current.classList.remove(...HL_ANIM_CLASSES);
+      void current.offsetWidth;
+      current.addEventListener("animationend", finish, { once: true });
+      setTimeout(finish, 130);
+      current.classList.add(exitClass);
+    }
+
+    function setSelectedDate(dateValue, { openPanel = true, direction = 0 } = {}) {
       state.selectedDate = dateValue;
       state.currentMonth = dateValue.slice(0, 7);
       renderCalendar();
-      renderSelectedDate();
+      transitionDateView("#selectedDateList", renderSelectedDate, direction);
       if (openPanel) openSelectedPanel();
     }
 
     function moveSelectedDate(delta) {
-      setSelectedDate(addDays(state.selectedDate, delta));
+      setSelectedDate(addDays(state.selectedDate, delta), { direction: delta });
     }
 
-    function setHomeDate(dateValue) {
+    function setHomeDate(dateValue, { direction = 0 } = {}) {
       state.homeDate = dateValue;
-      renderHome();
+      transitionDateView("#homeTodayCards .today-metrics", renderHome, direction);
     }
 
     function moveHomeDate(delta) {
-      setHomeDate(addDays(state.homeDate, delta));
+      setHomeDate(addDays(state.homeDate, delta), { direction: delta });
     }
 
     function daysInMonth(monthValue) {
@@ -1681,12 +1801,16 @@
       return `<span class="metric-summary">${escapeHTML(metric.text)}</span>`;
     }
 
-    function selectedDateRecordCardHTML(record) {
-      const type = recordTypes[record.type] || recordTypes.exercise;
-      const summary = homeMetricSummary(record.type, record);
-      const label = metricDisplayLabel(record.type);
+    function metricRecordCardHTML({ date, typeKey, record }) {
+      const type = recordTypes[typeKey] || recordTypes.exercise;
+      const summary = homeMetricSummary(typeKey, record);
+      const label = metricDisplayLabel(typeKey);
+      const actionLabel = summary.empty ? "입력" : "수정";
+      const dataAttrs = record
+        ? `data-record-id="${escapeHTML(record.id)}"`
+        : `data-quick-type="${escapeHTML(typeKey)}" data-record-date="${escapeHTML(date)}"`;
       return `
-        <button class="metric-card has-record" type="button" data-record-id="${escapeHTML(record.id)}" aria-label="${label} 수정">
+        <button class="metric-card ${summary.empty ? "is-empty" : "has-record"}" type="button" ${dataAttrs} aria-label="${label} ${actionLabel}">
           <span class="metric-icon"><span class="material-symbols-outlined">${type.icon}</span></span>
           <span class="metric-copy">
             <span class="metric-line">
@@ -1694,8 +1818,19 @@
               ${metricSummaryHTML(summary)}
             </span>
           </span>
+          ${summary.empty ? `<span class="metric-add" aria-hidden="true">
+            <span class="material-symbols-outlined">add</span>
+          </span>` : ""}
         </button>
       `;
+    }
+
+    function metricCardsForDateHTML(date, typeKeys = RECORD_TYPE_ORDER) {
+      return typeKeys.map(typeKey => metricRecordCardHTML({
+        date,
+        typeKey,
+        record: recordForDateType(date, typeKey)
+      })).join("");
     }
 
     function renderHome() {
@@ -1706,12 +1841,6 @@
     function renderHomeTodayCards() {
       const homeDate = state.homeDate;
       const isToday = homeDate === todayIso;
-      const metrics = Object.entries(recordTypes).map(([key, item]) => {
-        const record = recordForDateType(homeDate, key);
-        const summary = homeMetricSummary(key, record);
-        return { key, ...item, label: metricDisplayLabel(key), ...summary };
-      });
-
       document.querySelector("#homeTodayCards").innerHTML = `
         <div class="home-date-nav" aria-label="Home 기준 날짜 이동">
           <button class="btn icon-btn" type="button" data-home-date-prev aria-label="전날"><span class="material-symbols-outlined">chevron_left</span></button>
@@ -1722,20 +1851,7 @@
           <button class="btn icon-btn" type="button" data-home-date-next aria-label="다음날"><span class="material-symbols-outlined">chevron_right</span></button>
         </div>
         <div class="today-metrics">
-          ${metrics.map(m => `
-            <button class="metric-card ${m.empty ? "is-empty" : "has-record"}" type="button" data-quick-type="${m.key}" aria-label="${m.label} ${m.empty ? "입력" : "수정"}">
-              <span class="metric-icon"><span class="material-symbols-outlined">${m.icon}</span></span>
-              <span class="metric-copy">
-                <span class="metric-line">
-                  <span class="metric-label">${m.label}</span>
-                  ${metricSummaryHTML(m)}
-                </span>
-              </span>
-              ${m.empty ? `<span class="metric-add" aria-hidden="true">
-                <span class="material-symbols-outlined">add</span>
-              </span>` : ""}
-            </button>
-          `).join("")}
+          ${metricCardsForDateHTML(homeDate)}
         </div>
       `;
     }
@@ -1778,17 +1894,44 @@
     }
 
     function renderSelectedDate() {
-      const rows = recordsForDate(state.selectedDate);
       document.querySelector("#selectedDateTitle").textContent = formatDateKo(state.selectedDate);
-      document.querySelector("#selectedDateList").innerHTML = rows.length
-        ? rows.map(selectedDateRecordCardHTML).join("")
-        : `<div class="empty">이 날짜에는 아직 기록이 없습니다.<br>운동, 식사, 음주, 마음, 무게, 독서를 항목별로 추가해 보세요.</div>`;
+      document.querySelector("#selectedDateList").innerHTML = metricCardsForDateHTML(state.selectedDate);
+    }
+
+    function updatePanelGeometry() {
+      const panel = document.querySelector("#selectedDatePanel");
+      const layout = document.querySelector("#calendarLayout");
+      const weekday = layout ? layout.querySelector(".weekday-grid") : null;
+      if (!panel || !layout || !weekday) return;
+      const isMobile = window.matchMedia("(max-width: 980px)").matches;
+      if (!isMobile) {
+        panel.style.removeProperty("--panel-top");
+        panel.style.removeProperty("--panel-bottom");
+        return;
+      }
+      requestAnimationFrame(() => {
+        const layoutRect = layout.getBoundingClientRect();
+        const weekdayRect = weekday.getBoundingClientRect();
+        const topOffset = Math.max(0, weekdayRect.bottom - layoutRect.top + 6);
+        panel.style.setProperty("--panel-top", `${topOffset}px`);
+        const nav = document.querySelector(".bottom-nav");
+        if (nav) {
+          const navRect = nav.getBoundingClientRect();
+          const bottomOffset = layoutRect.bottom - (navRect.top - 8);
+          panel.style.setProperty("--panel-bottom", `${bottomOffset}px`);
+        }
+      });
     }
 
     function openSelectedPanel() {
       document.body.classList.add("selected-date-active");
       const panel = document.querySelector("#selectedDatePanel");
-      if (panel) panel.scrollTop = 0;
+      if (panel) {
+        const list = panel.querySelector("#selectedDateList");
+        if (list) list.scrollTop = 0;
+        else panel.scrollTop = 0;
+      }
+      updatePanelGeometry();
     }
 
     function closeSelectedPanel() {
@@ -1797,18 +1940,24 @@
 
     function renderRecords() {
       const root = document.querySelector("#recordsGroups");
-      const filtered = records.filter(item => state.typeFilter === "all" || item.type === state.typeFilter).sort(compareRecords);
-      if (!filtered.length) {
+      const dateSource = state.typeFilter === "all"
+        ? records
+        : records.filter(item => item.type === state.typeFilter);
+      const dates = Array.from(new Set(dateSource.map(item => item.date))).sort((a, b) => b.localeCompare(a));
+      if (!dates.length) {
         root.innerHTML = `<div class="empty">표시할 기록이 없습니다.</div>`;
         return;
       }
-      const byDate = filtered.reduce((acc, item) => ((acc[item.date] ||= []).push(item), acc), {});
-      root.innerHTML = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => `
+      const typeKeys = state.typeFilter === "all" ? RECORD_TYPE_ORDER : [state.typeFilter];
+      root.innerHTML = dates.map(date => {
+        const recordCount = recordsForDate(date).filter(item => state.typeFilter === "all" || item.type === state.typeFilter).length;
+        return `
         <section>
-          <h4 class="group-title">${formatDateKo(date)} · ${byDate[date].length}개</h4>
-          <div class="record-list records-list">${byDate[date].map(selectedDateRecordCardHTML).join("")}</div>
+          <h4 class="group-title">${formatDateKo(date)} · ${recordCount}개</h4>
+          <div class="record-list records-list">${metricCardsForDateHTML(date, typeKeys)}</div>
         </section>
-      `).join("");
+      `;
+      }).join("");
     }
 
     function renderDetail() {
@@ -2317,7 +2466,7 @@
 
       const quickType = event.target.closest("[data-quick-type]");
       if (quickType) {
-        openSheet({ date: state.homeDate, type: quickType.dataset.quickType });
+        openSheet({ date: quickType.dataset.recordDate || state.homeDate, type: quickType.dataset.quickType });
         return;
       }
       if (event.target.closest("[data-home-date-prev]")) {
@@ -2426,7 +2575,9 @@
         renderRecords();
       });
       document.querySelector("#selectedDatePanel").addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
         selectedSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
       });
       document.querySelector("#selectedDatePanel").addEventListener("pointerup", event => {
         if (!selectedSwipeStart || selectedSwipeStart.pointerId !== event.pointerId) return;
@@ -2441,7 +2592,9 @@
         selectedSwipeStart = null;
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
         homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerup", event => {
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
@@ -2455,6 +2608,11 @@
       document.querySelector("#homeTodayCards").addEventListener("pointercancel", () => {
         homeSwipeStart = null;
       });
+      const onViewportChange = () => {
+        if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
+      };
+      window.addEventListener("resize", onViewportChange);
+      window.addEventListener("orientationchange", onViewportChange);
     }
 
     async function boot() {
