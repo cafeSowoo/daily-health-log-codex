@@ -2170,7 +2170,6 @@
       if (type === "alcohol") {
         const fragments = [
           p.drinkType ? { kind: "text", text: drinkTypeEmojiLabel(p.drinkType) } : null,
-          p.amount ? { kind: "text", text: p.amount } : null,
           { kind: "pill", text: alcoholLabel(p), level: alcoholToneLevel(p) }
         ].filter(Boolean);
         return { fragments, empty: false };
