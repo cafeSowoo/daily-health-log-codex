@@ -252,25 +252,16 @@
       display: grid;
       gap: 12px;
       margin-bottom: 18px;
-      touch-action: pan-y;
     }
     .today-metrics {
       display: grid;
       gap: 0;
-      background: var(--surface-solid);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      touch-action: pan-y;
     }
     .today-metrics .metric-card {
-      background: var(--surface-solid);
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-      border-bottom: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06);
     }
-    .today-metrics .metric-card:last-child { border-bottom: none; }
     .today-overview { overflow-x: clip; }
     #calendarLayout {
       grid-template-columns: minmax(0, 1fr);
@@ -430,7 +421,10 @@
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 10px;
-      touch-action: pan-y;
+    }
+    .home-date-nav button {
+      touch-action: manipulation;
+      cursor: pointer;
     }
     .home-date-main {
       min-width: 0;
@@ -453,6 +447,28 @@
       color: var(--primary-dark);
     }
     .home-date-today { min-height: 38px; padding: 0 12px; }
+    .home-date-today.is-today {
+      border-color: rgba(155, 106, 74, 0.36);
+      background: var(--primary-soft);
+      color: var(--primary-dark);
+    }
+    .home-score-badge {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      min-width: 36px;
+      height: 33px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .home-score-badge.score-high { background: #d9edd1; border-color: rgba(66, 114, 53, 0.14); color: #2f6026; }
+    .home-score-badge.score-good { background: #f4e5b8; border-color: rgba(139, 100, 40, 0.14); color: #755016; }
+    .home-score-badge.score-mid { background: #f3d4bd; border-color: rgba(154, 85, 47, 0.14); color: #8d4326; }
+    .home-score-badge.score-low { background: #f1c1bb; border-color: rgba(168, 67, 54, 0.14); color: #96362c; }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -523,6 +539,8 @@
     .date-today-btn { min-height: 38px; padding: 0 12px; }
 
     .record-list { display: grid; align-content: start; grid-auto-rows: max-content; gap: 10px; }
+    .selected-date-list,
+    .records-list { gap: 0; }
     #selectedDatePanel.card-pad {
       padding-left: 0;
       padding-right: 0;
@@ -535,6 +553,7 @@
       max-height: 58px;
       padding-top: 10px;
       padding-bottom: 10px;
+      border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 8px 22px rgba(77, 54, 37, 0.06);
     }
@@ -858,6 +877,24 @@
         touch-action: pan-y;
       }
       #selectedDatePanel .date-navigator { flex: 0 0 auto; }
+      #selectedDatePanel [data-panel-dismiss-zone] {
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: grab;
+      }
+      #selectedDatePanel .date-navigator button {
+        touch-action: manipulation;
+        cursor: pointer;
+      }
+      #selectedDatePanel.is-panel-dragging {
+        touch-action: none;
+        overscroll-behavior: none;
+      }
+      #selectedDatePanel.is-panel-dragging #selectedDateList {
+        touch-action: none;
+        overflow-y: hidden;
+      }
       #selectedDatePanel #selectedDateList {
         flex: 1 1 auto;
         min-height: 0;
@@ -909,6 +946,7 @@
       .home-date-nav { gap: 6px; }
       .home-date-main { min-height: 36px; padding: 0 10px; font-size: 12px; }
       .home-date-today { min-height: 36px; padding: 0 10px; }
+      .home-score-badge { width: 36px; min-width: 36px; height: 33px; font-size: 13px; border-radius: 6px; }
       .chart-toggle {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1011,7 +1049,7 @@
             <div class="calendar-head date-navigator">
               <div class="selected-head-left">
                 <button class="btn icon-btn selected-back" type="button" data-selected-close aria-label="달력으로 돌아가기"><span class="material-symbols-outlined">arrow_back</span></button>
-                <div class="date-title-wrap">
+                <div class="date-title-wrap" data-panel-dismiss-zone>
                   <h3 class="section-title" id="selectedDateTitle">오늘</h3>
                 </div>
               </div>
@@ -1675,6 +1713,80 @@
       return { "낮음": 1, "보통": 3, "높음": 5 }[value] || 0;
     }
 
+    function scoreExercise(record) {
+      if (!record) return 0;
+      const p = record.payload || {};
+      const minutes = Number(p.durationMinutes || 0);
+      if (minutes <= 0) return 0;
+      if (p.intensity === "낮음") {
+        if (minutes < 20) return 5;
+        if (minutes < 30) return 10;
+        if (minutes < 40) return 15;
+        return p.exerciseType ? 20 : 15;
+      }
+      if (minutes < 10) return 5;
+      if (minutes < 20) return 10;
+      if (minutes < 30) return 15;
+      return p.exerciseType && ["보통", "높음"].includes(p.intensity) ? 20 : 15;
+    }
+
+    function scoreMeal(record) {
+      if (!record) return 0;
+      const lunch = record.payload?.lunchAmount || "";
+      const dinner = record.payload?.dinnerAmount || "";
+      const scores = {
+        "normal|small": 20,
+        "small|normal": 18,
+        "normal|normal": 17,
+        "small|small": 14,
+        "normal|overeaten": 10,
+        "overeaten|small": 9,
+        "small|overeaten": 8,
+        "overeaten|normal": 7,
+        "overeaten|overeaten": 3
+      };
+      return scores[`${lunch}|${dinner}`] || 0;
+    }
+
+    function scoreAlcohol(record) {
+      if (!record) return 0;
+      return { none: 20, moderate: 10, heavy: 0 }[alcoholLevel(record.payload)] ?? 0;
+    }
+
+    function scoreMoodValue(value) {
+      return { 1: 2, 2: 5, 3: 7, 4: 10, 5: 10 }[Number(value)] || 0;
+    }
+
+    function scoreMood(record) {
+      if (!record) return 0;
+      return scoreMoodValue(record.payload?.level) + scoreMoodValue(record.payload?.workLevel);
+    }
+
+    function scoreReading(record) {
+      if (!record) return 0;
+      const pages = Number(record.payload?.todayPages || 0);
+      if (pages >= 30) return 20;
+      if (pages >= 20) return 15;
+      if (pages >= 10) return 10;
+      if (pages >= 1) return 5;
+      return 0;
+    }
+
+    function dailyScoreForDate(dateValue) {
+      return scoreExercise(recordForDateType(dateValue, "exercise")) +
+        scoreMeal(recordForDateType(dateValue, "meal")) +
+        scoreAlcohol(recordForDateType(dateValue, "alcohol")) +
+        scoreMood(recordForDateType(dateValue, "mood")) +
+        scoreReading(recordForDateType(dateValue, "reading"));
+    }
+
+    function scoreToneClass(score) {
+      if (score >= 80) return "score-high";
+      if (score >= 60) return "score-good";
+      if (score >= 40) return "score-mid";
+      return "score-low";
+    }
+
     function recordForDateType(dateValue, type, excludeId = "") {
       return records
         .filter(item => item.date === dateValue && item.type === type && item.id !== excludeId)
@@ -1841,13 +1953,15 @@
     function renderHomeTodayCards() {
       const homeDate = state.homeDate;
       const isToday = homeDate === todayIso;
+      const dailyScore = dailyScoreForDate(homeDate);
       document.querySelector("#homeTodayCards").innerHTML = `
         <div class="home-date-nav" aria-label="Home 기준 날짜 이동">
           <button class="btn icon-btn" type="button" data-home-date-prev aria-label="전날"><span class="material-symbols-outlined">chevron_left</span></button>
           <button class="home-date-main ${isToday ? "is-today" : ""}" type="button" data-home-date-calendar aria-label="${formatDateKo(homeDate)} 달력에서 보기">
-            <span class="today-date-label">${formatDateKo(homeDate)}${isToday ? " · 오늘" : ""}</span>
+            <span class="today-date-label">${formatDateKo(homeDate)}</span>
           </button>
-          <button class="btn btn-ghost home-date-today" type="button" data-home-date-today>오늘</button>
+          <button class="btn btn-ghost home-date-today ${isToday ? "is-today" : ""}" type="button" data-home-date-today>오늘</button>
+          <span class="home-score-badge ${scoreToneClass(dailyScore)}" aria-label="${formatDateKo(homeDate)} 점수 ${dailyScore}점">${dailyScore}</span>
           <button class="btn icon-btn" type="button" data-home-date-next aria-label="다음날"><span class="material-symbols-outlined">chevron_right</span></button>
         </div>
         <div class="today-metrics">
@@ -1923,10 +2037,83 @@
       });
     }
 
+    function isCalendarPanelMobile() {
+      return window.matchMedia("(max-width: 980px)").matches;
+    }
+
+    function selectedPanelDismissThreshold(panel) {
+      return Math.max(72, Math.min(120, panel.offsetHeight * 0.18));
+    }
+
+    function restoreSelectedPanelPosition(panel) {
+      if (!panel || !document.body.classList.contains("selected-date-active")) return;
+      panel.classList.remove("is-panel-dragging");
+      panel.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
+      panel.style.transform = "translateY(0)";
+      panel.style.opacity = "1";
+      window.setTimeout(() => {
+        if (document.body.classList.contains("selected-date-active")) {
+          panel.style.transition = "";
+          panel.style.transform = "";
+          panel.style.opacity = "";
+        }
+      }, 180);
+    }
+
+    function restoreSelectedPanelList(list) {
+      if (!list) return;
+      list.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
+      list.style.transform = "translateX(0)";
+      list.style.opacity = "1";
+      window.setTimeout(() => {
+        list.style.transition = "";
+        list.style.transform = "";
+        list.style.opacity = "";
+      }, 180);
+    }
+
+    function beginSelectedPanelDismiss(panel, dy) {
+      panel.classList.add("is-panel-dragging");
+      panel.style.transition = "none";
+      panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      panel.style.opacity = String(Math.max(0.72, 1 - dy / 320));
+    }
+
+    function beginSelectedPanelHorizontal(panel, list, dx) {
+      panel.classList.add("is-panel-dragging");
+      if (!list) return;
+      list.style.transition = "none";
+      list.style.transform = `translateX(${dx}px)`;
+      list.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 400));
+    }
+
+    function closeSelectedPanelFromSwipe() {
+      const panel = document.querySelector("#selectedDatePanel");
+      if (!panel || !isCalendarPanelMobile()) {
+        closeSelectedPanel();
+        return;
+      }
+      suppressSwipeClickUntil = Date.now() + 350;
+      panel.classList.remove("is-panel-dragging");
+      panel.style.transition = "transform 0.24s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease";
+      panel.style.transform = "translateY(110%)";
+      panel.style.opacity = "0";
+      window.setTimeout(() => {
+        closeSelectedPanel();
+        panel.style.transition = "";
+        panel.style.transform = "";
+        panel.style.opacity = "";
+      }, 240);
+    }
+
     function openSelectedPanel() {
       document.body.classList.add("selected-date-active");
       const panel = document.querySelector("#selectedDatePanel");
       if (panel) {
+        panel.classList.remove("is-panel-dragging");
+        panel.style.transition = "";
+        panel.style.transform = "";
+        panel.style.opacity = "";
         const list = panel.querySelector("#selectedDateList");
         if (list) list.scrollTop = 0;
         else panel.scrollTop = 0;
@@ -1936,6 +2123,8 @@
 
     function closeSelectedPanel() {
       document.body.classList.remove("selected-date-active");
+      const panel = document.querySelector("#selectedDatePanel");
+      if (panel) panel.classList.remove("is-panel-dragging");
     }
 
     function renderRecords() {
@@ -2456,6 +2645,13 @@
         return;
       }
 
+      const metricRecordButton = event.target.closest(".metric-card[data-record-id]");
+      if (metricRecordButton) {
+        const record = records.find(item => item.id === metricRecordButton.dataset.recordId);
+        if (record) openSheet({ record });
+        return;
+      }
+
       const recordButton = event.target.closest("[data-record-id]");
       if (recordButton) {
         state.selectedId = recordButton.dataset.recordId;
@@ -2470,11 +2666,11 @@
         return;
       }
       if (event.target.closest("[data-home-date-prev]")) {
-        moveHomeDate(-1);
+        setHomeDate(addDays(state.homeDate, -1));
         return;
       }
       if (event.target.closest("[data-home-date-next]")) {
-        moveHomeDate(1);
+        setHomeDate(addDays(state.homeDate, 1));
         return;
       }
       if (event.target.closest("[data-home-date-today]")) {
@@ -2522,11 +2718,11 @@
         return;
       }
       if (event.target.closest("[data-date-prev]")) {
-        moveSelectedDate(-1);
+        setSelectedDate(addDays(state.selectedDate, -1));
         return;
       }
       if (event.target.closest("[data-date-next]")) {
-        moveSelectedDate(1);
+        setSelectedDate(addDays(state.selectedDate, 1));
         return;
       }
       if (event.target.closest("[data-date-today]")) {
@@ -2556,14 +2752,21 @@
     }
 
     function bindEvents() {
-      let selectedSwipeStart = null;
+      let selectedPanelDrag = null;
       let homeSwipeStart = null;
+      const selectedDatePanel = document.querySelector("#selectedDatePanel");
+
       document.addEventListener("click", handleDocumentClick);
       document.addEventListener("keydown", event => {
-        const quickCard = event.target.closest(".metric-card[data-quick-type]");
-        if (!quickCard || !["Enter", " "].includes(event.key)) return;
+        const metricCard = event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]");
+        if (!metricCard || !["Enter", " "].includes(event.key)) return;
         event.preventDefault();
-        openSheet({ date: state.homeDate, type: quickCard.dataset.quickType });
+        if (metricCard.dataset.recordId) {
+          const record = records.find(item => item.id === metricCard.dataset.recordId);
+          if (record) openSheet({ record });
+          return;
+        }
+        openSheet({ date: metricCard.dataset.recordDate || state.homeDate, type: metricCard.dataset.quickType });
       });
       document.querySelector("#recordType").addEventListener("change", () => {
         renderSheetTypeBadge();
@@ -2574,24 +2777,108 @@
         state.typeFilter = event.target.value;
         renderRecords();
       });
-      document.querySelector("#selectedDatePanel").addEventListener("pointerdown", event => {
+      selectedDatePanel.addEventListener("pointerdown", event => {
+        if (!isCalendarPanelMobile()) return;
+        if (!document.body.classList.contains("selected-date-active")) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
-        selectedSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
+        if (event.target.closest("input, select, textarea")) return;
+
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+        const startScrollTop = list ? list.scrollTop : 0;
+        const touchedList = event.target.closest("#selectedDateList");
+        const onDismissZone = event.target.closest("[data-panel-dismiss-zone]");
+        if (event.target.closest("button") && !touchedList) return;
+
+        selectedPanelDrag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          mode: null,
+          canDismiss: Boolean(onDismissZone) || (Boolean(touchedList) && startScrollTop <= 0)
+        };
+        if (!selectedPanelDrag.canDismiss && !touchedList) return;
+        try { selectedDatePanel.setPointerCapture(event.pointerId); } catch (_) {}
       });
-      document.querySelector("#selectedDatePanel").addEventListener("pointerup", event => {
-        if (!selectedSwipeStart || selectedSwipeStart.pointerId !== event.pointerId) return;
-        const dx = event.clientX - selectedSwipeStart.x;
-        const dy = event.clientY - selectedSwipeStart.y;
-        selectedSwipeStart = null;
-        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
-        suppressSwipeClickUntil = Date.now() + 350;
-        moveSelectedDate(dx < 0 ? 1 : -1);
+      const releaseSelectedPanelPointer = pointerId => {
+        try { selectedDatePanel.releasePointerCapture(pointerId); } catch (_) {}
+      };
+      selectedDatePanel.addEventListener("pointermove", event => {
+        if (!selectedPanelDrag || selectedPanelDrag.pointerId !== event.pointerId) return;
+
+        const dx = event.clientX - selectedPanelDrag.startX;
+        const dy = event.clientY - selectedPanelDrag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+
+        if (!selectedPanelDrag.mode) {
+          if (absDx < 6 && absDy < 6) return;
+          if (absDx > absDy * 1.2) {
+            selectedPanelDrag.mode = "horizontal";
+          } else if (dy > 0 && absDy > absDx * 1.2 && selectedPanelDrag.canDismiss) {
+            selectedPanelDrag.mode = "dismiss";
+          } else {
+            releaseSelectedPanelPointer(selectedPanelDrag.pointerId);
+            selectedPanelDrag = null;
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+
+        if (selectedPanelDrag.mode === "dismiss") {
+          beginSelectedPanelDismiss(selectedDatePanel, Math.max(0, dy));
+        } else if (selectedPanelDrag.mode === "horizontal") {
+          beginSelectedPanelHorizontal(selectedDatePanel, list, dx);
+        }
       });
-      document.querySelector("#selectedDatePanel").addEventListener("pointercancel", () => {
-        selectedSwipeStart = null;
+      selectedDatePanel.addEventListener("pointerup", event => {
+        if (!selectedPanelDrag || selectedPanelDrag.pointerId !== event.pointerId) return;
+
+        const dx = event.clientX - selectedPanelDrag.startX;
+        const dy = event.clientY - selectedPanelDrag.startY;
+        const mode = selectedPanelDrag.mode;
+        const pointerId = selectedPanelDrag.pointerId;
+        const list = selectedDatePanel.querySelector("#selectedDateList");
+        selectedPanelDrag = null;
+        releaseSelectedPanelPointer(pointerId);
+
+        if (mode === "dismiss") {
+          if (dy >= selectedPanelDismissThreshold(selectedDatePanel)) {
+            closeSelectedPanelFromSwipe();
+          } else {
+            restoreSelectedPanelPosition(selectedDatePanel);
+          }
+          return;
+        }
+
+        if (mode === "horizontal") {
+          if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+            suppressSwipeClickUntil = Date.now() + 350;
+            list.style.transition = "";
+            list.style.transform = "";
+            list.style.opacity = "";
+            selectedDatePanel.classList.remove("is-panel-dragging");
+            moveSelectedDate(dx < 0 ? 1 : -1);
+          } else {
+            selectedDatePanel.classList.remove("is-panel-dragging");
+            restoreSelectedPanelList(list);
+          }
+        }
+      });
+      selectedDatePanel.addEventListener("pointercancel", event => {
+        if (!selectedPanelDrag) return;
+        const mode = selectedPanelDrag.mode;
+        const pointerId = selectedPanelDrag.pointerId;
+        selectedPanelDrag = null;
+        releaseSelectedPanelPointer(pointerId);
+        if (mode === "dismiss") restoreSelectedPanelPosition(selectedDatePanel);
+        if (mode === "horizontal") restoreSelectedPanelList(selectedDatePanel.querySelector("#selectedDateList"));
+        selectedDatePanel.classList.remove("is-panel-dragging");
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerdown", event => {
+        if (event.target.closest(".home-date-nav")) return;
+        if (!event.target.closest(".today-metrics")) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
         homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
@@ -2600,13 +2887,18 @@
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
         const dx = event.clientX - homeSwipeStart.x;
         const dy = event.clientY - homeSwipeStart.y;
+        const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
+        try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
         if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
         suppressSwipeClickUntil = Date.now() + 350;
         moveHomeDate(dx < 0 ? 1 : -1);
       });
-      document.querySelector("#homeTodayCards").addEventListener("pointercancel", () => {
+      document.querySelector("#homeTodayCards").addEventListener("pointercancel", event => {
+        if (!homeSwipeStart) return;
+        const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
+        try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
       });
       const onViewportChange = () => {
         if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
