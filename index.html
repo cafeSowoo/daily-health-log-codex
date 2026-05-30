@@ -311,6 +311,7 @@
     @media (prefers-reduced-motion: reduce) {
       .hl-exit-left, .hl-exit-right, .hl-enter-right, .hl-enter-left { animation: none; }
       body.selected-date-active #calendar.active #selectedDatePanel { animation: none; }
+      .sheet.open .sheet-panel { animation: none; opacity: 1; transform: translate(-50%, -50%); }
     }
     .metric-card {
       width: 100%;
@@ -731,7 +732,15 @@
 
     .sheet { position: fixed; inset: 0; z-index: 80; display: none; }
     .sheet.open { display: block; }
-    .sheet-backdrop { position: absolute; inset: 0; border: 0; background: rgba(36, 27, 23, 0.38); }
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      background: rgba(36, 27, 23, 0.38);
+      opacity: 0;
+      transition: opacity 0.24s ease;
+    }
+    .sheet.open .sheet-backdrop { opacity: 1; }
     .sheet-panel {
       position: absolute;
       left: 50%;
@@ -744,8 +753,25 @@
       border-radius: 22px;
       background: #fffdfb;
       box-shadow: 0 28px 70px rgba(36, 27, 23, 0.28);
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, calc(-50% + 36px));
+      opacity: 0;
+      touch-action: pan-y;
     }
+    .sheet.open .sheet-panel {
+      animation: sheet-panel-rise-desktop 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+    @keyframes sheet-panel-rise-desktop {
+      from { transform: translate(-50%, calc(-50% + 36px)); opacity: 0; }
+      to { transform: translate(-50%, -50%); opacity: 1; }
+    }
+    .sheet-panel.is-sheet-dragging { touch-action: none; overscroll-behavior: none; }
+    .sheet-panel [data-sheet-dismiss-zone] {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: grab;
+    }
+    .sheet-panel .sheet-head button { touch-action: manipulation; cursor: pointer; }
     .sheet-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
     .sheet-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 22px; font-weight: 800; }
     .sheet-type-badge {
@@ -912,7 +938,15 @@
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .topbar { align-items: center; }
       .topbar .quick-row { justify-content: flex-end; }
-      .sheet-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; transform: none; }
+      .sheet-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; transform: translateY(100%); opacity: 0; }
+      .sheet.open .sheet-panel { animation: sheet-panel-rise 0.32s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+      @keyframes sheet-panel-rise {
+        from { transform: translateY(100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sheet.open .sheet-panel { animation: none; transform: translateY(0); opacity: 1; }
+      }
 
       #calendarLayout { position: relative; }
       .selected-back { display: inline-flex; align-items: center; justify-content: center; }
@@ -1220,7 +1254,7 @@
   <section id="recordSheet" class="sheet" aria-hidden="true">
     <button class="sheet-backdrop" type="button" data-close-sheet aria-label="기록 추가 닫기"></button>
     <div class="sheet-panel">
-      <div class="sheet-head">
+      <div class="sheet-head" data-sheet-dismiss-zone>
         <div>
           <h3 class="sheet-title">
             <span id="sheetTitleText">기록 추가</span>
@@ -1261,7 +1295,7 @@
   <section id="scoreSheet" class="sheet" aria-hidden="true">
     <button class="sheet-backdrop" type="button" data-close-score-sheet aria-label="점수 산정 닫기"></button>
     <div class="sheet-panel">
-      <div class="sheet-head">
+      <div class="sheet-head" data-sheet-dismiss-zone>
         <div>
           <h3 class="sheet-title" id="scoreSheetTitle">오늘 점수</h3>
         </div>
@@ -1310,6 +1344,8 @@
     let records = [];
     let toastTimer = 0;
     let suppressSwipeClickUntil = 0;
+    let suppressSheetPopState = false;
+    let activeSheetKind = "";
 
     function metricDisplayLabel(typeKey) {
       if (typeKey === "mood") return "마음";
@@ -2619,6 +2655,202 @@
       }
     }
 
+    function isSheetOpen(selector) {
+      return document.querySelector(selector)?.classList.contains("open");
+    }
+
+    function isAnySheetOpen() {
+      return isSheetOpen("#recordSheet") || isSheetOpen("#scoreSheet");
+    }
+
+    function resetSheetPanelTransform(panel) {
+      if (!panel) return;
+      panel.classList.remove("is-sheet-dragging");
+      panel.style.transition = "";
+      panel.style.transform = "";
+      panel.style.opacity = "";
+    }
+
+    function isSheetMobileLayout() {
+      return window.matchMedia("(max-width: 980px)").matches;
+    }
+
+    function sheetDragTransform(dy) {
+      const offset = Math.max(0, dy);
+      return isSheetMobileLayout()
+        ? `translateY(${offset}px)`
+        : `translate(-50%, calc(-50% + ${offset}px))`;
+    }
+
+    function sheetCloseTransform() {
+      return isSheetMobileLayout()
+        ? "translateY(110%)"
+        : "translate(-50%, calc(-50% + 90px))";
+    }
+
+    function syncSheetBodyScroll() {
+      document.body.style.overflow = isAnySheetOpen() ? "hidden" : "";
+    }
+
+    function pushSheetHistory(kind) {
+      activeSheetKind = kind;
+      history.pushState({ hlSheet: kind }, "");
+    }
+
+    function animateSheetPanelClose(sheet, panel, callback) {
+      if (sheet.dataset.closing === "1") return;
+      sheet.dataset.closing = "1";
+      panel.style.transition = "transform 0.24s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease";
+      panel.style.transform = sheetCloseTransform();
+      panel.style.opacity = "0";
+      window.setTimeout(() => {
+        sheet.dataset.closing = "";
+        resetSheetPanelTransform(panel);
+        callback();
+      }, 240);
+    }
+
+    function prepareSheetOpen(sheet, kind) {
+      const panel = sheet.querySelector(".sheet-panel");
+      resetSheetPanelTransform(panel);
+      sheet.classList.add("open");
+      sheet.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+      if (activeSheetKind !== kind) pushSheetHistory(kind);
+    }
+
+    function closeSheetLayer({ sheetSelector, kind, onClosed, fromHistory = false } = {}) {
+      const sheet = document.querySelector(sheetSelector);
+      const panel = sheet?.querySelector(".sheet-panel");
+      if (!sheet?.classList.contains("open")) return;
+
+      const finish = () => {
+        sheet.classList.remove("open");
+        sheet.setAttribute("aria-hidden", "true");
+        resetSheetPanelTransform(panel);
+        onClosed?.();
+        if (activeSheetKind === kind) activeSheetKind = "";
+        syncSheetBodyScroll();
+      };
+
+      if (!fromHistory && activeSheetKind === kind) {
+        animateSheetPanelClose(sheet, panel, () => {
+          finish();
+          suppressSheetPopState = true;
+          history.back();
+        });
+        return;
+      }
+
+      animateSheetPanelClose(sheet, panel, finish);
+    }
+
+    function handleAppPopState() {
+      if (suppressSheetPopState) {
+        suppressSheetPopState = false;
+        return;
+      }
+      if (isSheetOpen("#recordSheet")) {
+        closeSheet({ fromHistory: true });
+        return;
+      }
+      if (isSheetOpen("#scoreSheet")) {
+        closeScoreSheet({ fromHistory: true });
+      }
+    }
+
+    function setupSheetDismiss({ sheetSelector, onDismiss }) {
+      const sheet = document.querySelector(sheetSelector);
+      const panel = sheet?.querySelector(".sheet-panel");
+      if (!sheet || !panel) return;
+
+      const dismissThreshold = () => Math.max(72, Math.min(140, panel.offsetHeight * 0.16));
+      let drag = null;
+
+      const restorePanel = () => {
+        panel.classList.remove("is-sheet-dragging");
+        panel.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
+        panel.style.transform = isSheetMobileLayout() ? "translateY(0)" : "translate(-50%, -50%)";
+        panel.style.opacity = "1";
+        window.setTimeout(() => {
+          if (sheet.classList.contains("open") && sheet.dataset.closing !== "1") {
+            resetSheetPanelTransform(panel);
+          }
+        }, 180);
+      };
+
+      panel.addEventListener("pointerdown", event => {
+        if (!sheet.classList.contains("open") || sheet.dataset.closing === "1") return;
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        if (event.target.closest("input, select, textarea, button, a, label")) return;
+
+        const onDismissZone = event.target.closest("[data-sheet-dismiss-zone]");
+        drag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          mode: null,
+          canDismiss: Boolean(onDismissZone) || panel.scrollTop <= 0
+        };
+        if (!drag.canDismiss) return;
+        try { panel.setPointerCapture(event.pointerId); } catch (_) {}
+      });
+
+      panel.addEventListener("pointermove", event => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+
+        const dx = event.clientX - drag.startX;
+        const dy = event.clientY - drag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (!drag.mode) {
+          if (absDx < 6 && absDy < 6) return;
+          if (dy > 0 && absDy > absDx * 1.15 && drag.canDismiss) {
+            drag.mode = "dismiss";
+          } else {
+            try { panel.releasePointerCapture(drag.pointerId); } catch (_) {}
+            drag = null;
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+        panel.classList.add("is-sheet-dragging");
+        panel.style.transition = "none";
+        panel.style.transform = sheetDragTransform(Math.max(0, dy));
+        panel.style.opacity = String(Math.max(0.72, 1 - dy / 320));
+      });
+
+      panel.addEventListener("pointerup", event => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+
+        const dy = event.clientY - drag.startY;
+        const mode = drag.mode;
+        const pointerId = drag.pointerId;
+        drag = null;
+        try { panel.releasePointerCapture(pointerId); } catch (_) {}
+
+        if (mode === "dismiss") {
+          if (Math.abs(dy) > 8) suppressSwipeClickUntil = Date.now() + 350;
+          if (dy >= dismissThreshold()) {
+            onDismiss();
+          } else {
+            restorePanel();
+          }
+        }
+      });
+
+      panel.addEventListener("pointercancel", event => {
+        if (!drag) return;
+        const mode = drag.mode;
+        const pointerId = drag.pointerId;
+        drag = null;
+        try { panel.releasePointerCapture(pointerId); } catch (_) {}
+        if (mode === "dismiss") restorePanel();
+      });
+    }
+
     function openSheet({ date = state.selectedDate, type = "exercise", record = null } = {}) {
       try {
         canEditOrThrow();
@@ -2631,8 +2863,7 @@
       const targetType = record?.type || type;
       const targetRecord = record || recordForDateType(targetDate, targetType);
       const sheet = document.querySelector("#recordSheet");
-      sheet.classList.add("open");
-      sheet.setAttribute("aria-hidden", "false");
+      prepareSheetOpen(sheet, "record");
       document.querySelector("#sheetTitleText").textContent = targetRecord ? "기록 수정" : "기록 추가";
       document.querySelector("#recordId").value = targetRecord?.id || "";
       document.querySelector("#recordDate").value = targetRecord?.date || targetDate;
@@ -2641,12 +2872,16 @@
       renderDynamicFields(targetRecord?.payload || {});
     }
 
-    function closeSheet() {
-      const sheet = document.querySelector("#recordSheet");
-      sheet.classList.remove("open");
-      sheet.setAttribute("aria-hidden", "true");
-      document.querySelector("#recordForm").reset();
-      document.querySelector("#recordId").value = "";
+    function closeSheet({ fromHistory = false } = {}) {
+      closeSheetLayer({
+        sheetSelector: "#recordSheet",
+        kind: "record",
+        fromHistory,
+        onClosed: () => {
+          document.querySelector("#recordForm").reset();
+          document.querySelector("#recordId").value = "";
+        }
+      });
     }
 
     function openScoreSheet(dateValue = state.homeDate) {
@@ -2654,19 +2889,22 @@
       const scoreDisplay = scoreDisplayForDate(dateValue);
       const sheet = document.querySelector("#scoreSheet");
       const totalNode = document.querySelector("#scoreSheetTotal");
+      prepareSheetOpen(sheet, "score");
       document.querySelector("#scoreSheetTitle").textContent = `${formatDateKo(dateValue)} 점수`;
       totalNode.className = scoreDisplay.toneClass;
       totalNode.textContent = scoreDisplay.label;
       document.querySelector("#scoreBreakdown").innerHTML = scoreBreakdownHTML(rows);
-      sheet.classList.add("open");
-      sheet.setAttribute("aria-hidden", "false");
     }
 
-    function closeScoreSheet() {
-      const sheet = document.querySelector("#scoreSheet");
-      sheet.classList.remove("open");
-      sheet.setAttribute("aria-hidden", "true");
-      document.querySelector("#scoreBreakdown").innerHTML = "";
+    function closeScoreSheet({ fromHistory = false } = {}) {
+      closeSheetLayer({
+        sheetSelector: "#scoreSheet",
+        kind: "score",
+        fromHistory,
+        onClosed: () => {
+          document.querySelector("#scoreBreakdown").innerHTML = "";
+        }
+      });
     }
 
     function renderSheetTypeBadge() {
@@ -3106,6 +3344,9 @@
       };
       window.addEventListener("resize", onViewportChange);
       window.addEventListener("orientationchange", onViewportChange);
+      window.addEventListener("popstate", handleAppPopState);
+      setupSheetDismiss({ sheetSelector: "#recordSheet", onDismiss: () => closeSheet() });
+      setupSheetDismiss({ sheetSelector: "#scoreSheet", onDismiss: () => closeScoreSheet() });
     }
 
     async function boot() {
