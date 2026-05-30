@@ -495,12 +495,21 @@
       font-size: 12px;
       font-weight: 800;
     }
-    .home-memo-list { display: grid; gap: 13px; }
-    .home-memo-item { display: grid; gap: 4px; min-width: 0; }
+    .home-memo-list { display: grid; gap: 11px; }
+    .home-memo-item {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      min-width: 0;
+    }
     .home-memo-label {
+      padding-top: 1px;
       color: var(--primary-dark);
       font-size: 13px;
       font-weight: 850;
+      line-height: 1.45;
+      white-space: nowrap;
     }
     .home-memo-text {
       display: -webkit-box;
