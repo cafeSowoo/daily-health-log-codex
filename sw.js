@@ -1,4 +1,4 @@
-const CACHE_NAME = "codex-daily-health-log-20260530-pwa-auth-refresh";
+const CACHE_NAME = "codex-daily-health-log-20260530-full-bleed-icons";
 const SHELL_ASSETS = [
   "./manifest.webmanifest",
   "./favicon.png",
