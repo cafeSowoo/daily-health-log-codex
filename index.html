@@ -311,7 +311,7 @@
     @media (prefers-reduced-motion: reduce) {
       .hl-exit-left, .hl-exit-right, .hl-enter-right, .hl-enter-left { animation: none; }
       body.selected-date-active #calendar.active #selectedDatePanel { animation: none; }
-      .sheet.open .sheet-panel { animation: none; opacity: 1; transform: translate(-50%, -50%); }
+      .sheet.open .sheet-panel { opacity: 1; }
     }
     .metric-card {
       width: 100%;
@@ -732,6 +732,7 @@
 
     .sheet { position: fixed; inset: 0; z-index: 80; display: none; }
     .sheet.open { display: block; }
+    .sheet[data-closing="1"] { pointer-events: none; }
     .sheet-backdrop {
       position: absolute;
       inset: 0;
@@ -753,16 +754,10 @@
       border-radius: 22px;
       background: #fffdfb;
       box-shadow: 0 28px 70px rgba(36, 27, 23, 0.28);
-      transform: translate(-50%, calc(-50% + 36px));
-      opacity: 0;
+      transform: translate(-50%, -50%);
+      opacity: 1;
       touch-action: pan-y;
-    }
-    .sheet.open .sheet-panel {
-      animation: sheet-panel-rise-desktop 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-    }
-    @keyframes sheet-panel-rise-desktop {
-      from { transform: translate(-50%, calc(-50% + 36px)); opacity: 0; }
-      to { transform: translate(-50%, -50%); opacity: 1; }
+      will-change: transform, opacity;
     }
     .sheet-panel.is-sheet-dragging { touch-action: none; overscroll-behavior: none; }
     .sheet-panel [data-sheet-dismiss-zone] {
@@ -938,15 +933,7 @@
       .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .topbar { align-items: center; }
       .topbar .quick-row { justify-content: flex-end; }
-      .sheet-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; transform: translateY(100%); opacity: 0; }
-      .sheet.open .sheet-panel { animation: sheet-panel-rise 0.32s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
-      @keyframes sheet-panel-rise {
-        from { transform: translateY(100%); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .sheet.open .sheet-panel { animation: none; transform: translateY(0); opacity: 1; }
-      }
+      .sheet-panel { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88vh; border-radius: 22px 22px 0 0; transform: translateY(0); opacity: 1; }
 
       #calendarLayout { position: relative; }
       .selected-back { display: inline-flex; align-items: center; justify-content: center; }
@@ -2671,6 +2658,31 @@
       panel.style.opacity = "";
     }
 
+    function resetSheetBackdrop(sheet) {
+      const backdrop = sheet?.querySelector(".sheet-backdrop");
+      if (!backdrop) return;
+      backdrop.style.transition = "";
+      backdrop.style.opacity = "";
+    }
+
+    function setSheetBackdropOpacity(sheet, opacity) {
+      const backdrop = sheet.querySelector(".sheet-backdrop");
+      if (!backdrop) return;
+      backdrop.style.opacity = String(opacity);
+    }
+
+    function sheetOpenStartTransform() {
+      return isSheetMobileLayout()
+        ? "translateY(100%)"
+        : "translate(-50%, calc(-50% + 40px))";
+    }
+
+    function sheetOpenEndTransform() {
+      return isSheetMobileLayout()
+        ? "translateY(0)"
+        : "translate(-50%, -50%)";
+    }
+
     function isSheetMobileLayout() {
       return window.matchMedia("(max-width: 980px)").matches;
     }
@@ -2700,22 +2712,66 @@
     function animateSheetPanelClose(sheet, panel, callback) {
       if (sheet.dataset.closing === "1") return;
       sheet.dataset.closing = "1";
-      panel.style.transition = "transform 0.24s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease";
-      panel.style.transform = sheetCloseTransform();
-      panel.style.opacity = "0";
-      window.setTimeout(() => {
-        sheet.dataset.closing = "";
-        resetSheetPanelTransform(panel);
-        callback();
-      }, 240);
+      syncSheetBodyScroll();
+      const backdrop = sheet.querySelector(".sheet-backdrop");
+      panel.classList.remove("is-sheet-dragging");
+      panel.style.transition = "none";
+      if (backdrop) backdrop.style.transition = "none";
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          panel.style.transition = "transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.18s ease";
+          panel.style.transform = sheetCloseTransform();
+          panel.style.opacity = "0";
+          if (backdrop) {
+            backdrop.style.transition = "opacity 0.18s ease";
+            backdrop.style.opacity = "0";
+          }
+          window.setTimeout(() => {
+            sheet.dataset.closing = "";
+            resetSheetPanelTransform(panel);
+            resetSheetBackdrop(sheet);
+            callback();
+          }, 220);
+        });
+      });
     }
 
     function prepareSheetOpen(sheet, kind) {
       const panel = sheet.querySelector(".sheet-panel");
+      const backdrop = sheet.querySelector(".sheet-backdrop");
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
       resetSheetPanelTransform(panel);
+      resetSheetBackdrop(sheet);
       sheet.classList.add("open");
       sheet.setAttribute("aria-hidden", "false");
       document.body.style.overflow = "hidden";
+
+      if (reducedMotion) {
+        panel.style.transform = sheetOpenEndTransform();
+        panel.style.opacity = "1";
+        if (backdrop) backdrop.style.opacity = "1";
+      } else {
+        panel.style.transition = "none";
+        panel.style.transform = sheetOpenStartTransform();
+        panel.style.opacity = "0";
+        if (backdrop) {
+          backdrop.style.transition = "none";
+          backdrop.style.opacity = "0";
+        }
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            panel.style.transition = "transform 0.26s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.22s ease";
+            panel.style.transform = sheetOpenEndTransform();
+            panel.style.opacity = "1";
+            if (backdrop) {
+              backdrop.style.transition = "opacity 0.22s ease";
+              backdrop.style.opacity = "1";
+            }
+          });
+        });
+      }
+
       if (activeSheetKind !== kind) pushSheetHistory(kind);
     }
 
@@ -2727,7 +2783,9 @@
       const finish = () => {
         sheet.classList.remove("open");
         sheet.setAttribute("aria-hidden", "true");
+        sheet.dataset.closing = "";
         resetSheetPanelTransform(panel);
+        resetSheetBackdrop(sheet);
         onClosed?.();
         if (activeSheetKind === kind) activeSheetKind = "";
         syncSheetBodyScroll();
@@ -2769,14 +2827,20 @@
 
       const restorePanel = () => {
         panel.classList.remove("is-sheet-dragging");
-        panel.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
-        panel.style.transform = isSheetMobileLayout() ? "translateY(0)" : "translate(-50%, -50%)";
+        panel.style.transition = "transform 0.14s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.14s ease";
+        panel.style.transform = sheetOpenEndTransform();
         panel.style.opacity = "1";
+        const backdrop = sheet.querySelector(".sheet-backdrop");
+        if (backdrop) {
+          backdrop.style.transition = "opacity 0.14s ease";
+          backdrop.style.opacity = "1";
+        }
         window.setTimeout(() => {
           if (sheet.classList.contains("open") && sheet.dataset.closing !== "1") {
             resetSheetPanelTransform(panel);
+            resetSheetBackdrop(sheet);
           }
-        }, 180);
+        }, 140);
       };
 
       panel.addEventListener("pointerdown", event => {
@@ -2818,8 +2882,12 @@
         if (event.cancelable) event.preventDefault();
         panel.classList.add("is-sheet-dragging");
         panel.style.transition = "none";
-        panel.style.transform = sheetDragTransform(Math.max(0, dy));
-        panel.style.opacity = String(Math.max(0.72, 1 - dy / 320));
+        const progress = Math.max(0, dy);
+        panel.style.transform = sheetDragTransform(progress);
+        panel.style.opacity = String(Math.max(0.72, 1 - progress / 320));
+        setSheetBackdropOpacity(sheet, Math.max(0, 1 - progress / 280));
+        const backdrop = sheet.querySelector(".sheet-backdrop");
+        if (backdrop) backdrop.style.transition = "none";
       });
 
       panel.addEventListener("pointerup", event => {
@@ -2832,7 +2900,6 @@
         try { panel.releasePointerCapture(pointerId); } catch (_) {}
 
         if (mode === "dismiss") {
-          if (Math.abs(dy) > 8) suppressSwipeClickUntil = Date.now() + 350;
           if (dy >= dismissThreshold()) {
             onDismiss();
           } else {
