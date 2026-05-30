@@ -2655,6 +2655,7 @@
       panel.classList.remove("is-sheet-dragging");
       panel.style.transition = "";
       panel.style.transform = "";
+      panel.style.webkitTransform = "";
       panel.style.opacity = "";
     }
 
@@ -2721,6 +2722,7 @@
         requestAnimationFrame(() => {
           panel.style.transition = "transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.18s ease";
           panel.style.transform = sheetCloseTransform();
+          panel.style.webkitTransform = sheetCloseTransform();
           panel.style.opacity = "0";
           if (backdrop) {
             backdrop.style.transition = "opacity 0.18s ease";
@@ -2749,11 +2751,13 @@
 
       if (reducedMotion) {
         panel.style.transform = sheetOpenEndTransform();
+        panel.style.webkitTransform = sheetOpenEndTransform();
         panel.style.opacity = "1";
         if (backdrop) backdrop.style.opacity = "1";
       } else {
         panel.style.transition = "none";
         panel.style.transform = sheetOpenStartTransform();
+        panel.style.webkitTransform = sheetOpenStartTransform();
         panel.style.opacity = "0";
         if (backdrop) {
           backdrop.style.transition = "none";
@@ -2763,6 +2767,7 @@
           requestAnimationFrame(() => {
             panel.style.transition = "transform 0.26s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.22s ease";
             panel.style.transform = sheetOpenEndTransform();
+            panel.style.webkitTransform = sheetOpenEndTransform();
             panel.style.opacity = "1";
             if (backdrop) {
               backdrop.style.transition = "opacity 0.22s ease";
@@ -2824,15 +2829,18 @@
 
       const dismissThreshold = () => Math.max(72, Math.min(140, panel.offsetHeight * 0.16));
       let drag = null;
+      let touchDrag = null;
+      let suppressClick = false;
 
       const restorePanel = () => {
         panel.classList.remove("is-sheet-dragging");
-        panel.style.transition = "transform 0.14s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.14s ease";
+        panel.style.transition = "transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.18s ease";
         panel.style.transform = sheetOpenEndTransform();
+        panel.style.webkitTransform = sheetOpenEndTransform();
         panel.style.opacity = "1";
         const backdrop = sheet.querySelector(".sheet-backdrop");
         if (backdrop) {
-          backdrop.style.transition = "opacity 0.14s ease";
+          backdrop.style.transition = "opacity 0.18s ease";
           backdrop.style.opacity = "1";
         }
         window.setTimeout(() => {
@@ -2840,11 +2848,105 @@
             resetSheetPanelTransform(panel);
             resetSheetBackdrop(sheet);
           }
-        }, 140);
+        }, 180);
       };
+
+      const beginDismiss = dy => {
+        panel.classList.add("is-sheet-dragging");
+        panel.style.transition = "none";
+        const progress = Math.max(0, dy);
+        const transform = sheetDragTransform(progress);
+        panel.style.transform = transform;
+        panel.style.webkitTransform = transform;
+        panel.style.opacity = String(Math.max(0.72, 1 - progress / 320));
+        setSheetBackdropOpacity(sheet, Math.max(0, 1 - progress / 280));
+        const backdrop = sheet.querySelector(".sheet-backdrop");
+        if (backdrop) backdrop.style.transition = "none";
+      };
+
+      panel.addEventListener("click", event => {
+        if (!suppressClick) return;
+        event.preventDefault();
+        event.stopPropagation();
+        suppressClick = false;
+      }, true);
+
+      panel.addEventListener("touchstart", event => {
+        if (!isSheetMobileLayout() || !sheet.classList.contains("open") || sheet.dataset.closing === "1") return;
+        if (event.touches.length !== 1) return;
+        if (event.target.closest("input, select, textarea, button, a, label")) return;
+
+        const touch = event.touches[0];
+        const onDismissZone = event.target.closest("[data-sheet-dismiss-zone]");
+        const startScrollTop = panel.scrollTop;
+        touchDrag = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          mode: null,
+          canDismiss: Boolean(onDismissZone) || startScrollTop <= 0
+        };
+      }, { passive: true });
+
+      panel.addEventListener("touchmove", event => {
+        if (!touchDrag || event.touches.length !== 1) return;
+
+        const touch = event.touches[0];
+        const dx = touch.clientX - touchDrag.startX;
+        const dy = touch.clientY - touchDrag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (!touchDrag.mode) {
+          if (absDx < 5 && absDy < 5) return;
+          if (absDx > absDy * 1.15) {
+            touchDrag = null;
+            return;
+          }
+          if (dy > 0 && absDy > absDx * 1.15 && touchDrag.canDismiss) {
+            touchDrag.mode = "dismiss";
+          } else {
+            touchDrag = null;
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+        beginDismiss(dy);
+      }, { passive: false });
+
+      panel.addEventListener("touchend", event => {
+        if (!touchDrag) return;
+
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - touchDrag.startX;
+        const dy = touch.clientY - touchDrag.startY;
+        const mode = touchDrag.mode;
+        touchDrag = null;
+        panel.classList.remove("is-sheet-dragging");
+
+        if (mode !== "dismiss") return;
+
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+          suppressClick = true;
+          window.setTimeout(() => { suppressClick = false; }, 250);
+        }
+
+        if (dy >= dismissThreshold()) {
+          onDismiss();
+        } else {
+          restorePanel();
+        }
+      }, { passive: true });
+
+      panel.addEventListener("touchcancel", () => {
+        if (!touchDrag) return;
+        touchDrag = null;
+        restorePanel();
+      }, { passive: true });
 
       panel.addEventListener("pointerdown", event => {
         if (!sheet.classList.contains("open") || sheet.dataset.closing === "1") return;
+        if (event.pointerType === "touch") return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
         if (event.target.closest("input, select, textarea, button, a, label")) return;
 
@@ -2880,14 +2982,7 @@
         }
 
         if (event.cancelable) event.preventDefault();
-        panel.classList.add("is-sheet-dragging");
-        panel.style.transition = "none";
-        const progress = Math.max(0, dy);
-        panel.style.transform = sheetDragTransform(progress);
-        panel.style.opacity = String(Math.max(0.72, 1 - progress / 320));
-        setSheetBackdropOpacity(sheet, Math.max(0, 1 - progress / 280));
-        const backdrop = sheet.querySelector(".sheet-backdrop");
-        if (backdrop) backdrop.style.transition = "none";
+        beginDismiss(dy);
       });
 
       panel.addEventListener("pointerup", event => {
