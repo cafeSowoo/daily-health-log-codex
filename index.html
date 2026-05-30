@@ -472,6 +472,47 @@
     .home-score-badge.score-mid { background: #f3d4bd; border-color: rgba(154, 85, 47, 0.14); color: #8d4326; }
     .home-score-badge.score-low { background: #f1c1bb; border-color: rgba(168, 67, 54, 0.14); color: #96362c; }
     .home-score-badge.score-pending { background: #eee9e4; border-color: rgba(134, 117, 107, 0.16); color: var(--muted); }
+    #homeMemoCard:not(:empty) + .home-block { margin-top: 0; }
+    .home-memo-card {
+      margin: 10px 0 18px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 253, 251, 0.92);
+      box-shadow: 0 16px 38px rgba(77, 54, 37, 0.1);
+    }
+    .home-memo-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .home-memo-title { margin: 0; font-size: 17px; font-weight: 850; }
+    .home-memo-count {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .home-memo-list { display: grid; gap: 13px; }
+    .home-memo-item { display: grid; gap: 4px; min-width: 0; }
+    .home-memo-label {
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .home-memo-text {
+      display: -webkit-box;
+      margin: 0;
+      overflow: hidden;
+      color: #57463c;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -841,7 +882,7 @@
       font-size: 14px;
       font-weight: 700;
     }
-    .textarea { min-height: 92px; resize: vertical; }
+    .textarea { min-height: 72px; resize: vertical; }
     .input:focus, .select:focus, .textarea:focus { border-color: rgba(155, 106, 74, 0.55); box-shadow: 0 0 0 3px rgba(155, 106, 74, 0.12); }
     .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
     .sheet-actions .btn { flex: 1; }
@@ -1093,6 +1134,7 @@
 
       <section id="home" class="view active">
         <div class="today-overview" id="homeTodayCards"></div>
+        <div id="homeMemoCard"></div>
 
         <div class="grid home-block">
           <article class="card card-pad">
@@ -2056,7 +2098,7 @@
     function summaryText(record) {
       const p = record.payload || {};
       if (record.type === "exercise") {
-        return [`${p.exerciseType || "운동"}`, p.durationMinutes ? `${p.durationMinutes}분` : "", p.intensity || ""].filter(Boolean).join(" · ");
+        return [`${p.exerciseType || "운동"}`, p.durationMinutes ? `${p.durationMinutes}분` : "", p.intensity || "", p.memo || ""].filter(Boolean).join(" · ");
       }
       if (record.type === "meal") {
         const parts = [
@@ -2075,9 +2117,9 @@
           p.memo || ""
         ].filter(Boolean).join(" · ");
       }
-      if (record.type === "weight") return p.weightKg ? `${p.weightKg}kg` : "무게";
+      if (record.type === "weight") return [p.weightKg ? `${p.weightKg}kg` : "무게", p.memo || ""].filter(Boolean).join(" · ");
       if (record.type === "reading") {
-        return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`].join(" · ");
+        return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
       }
       return "";
     }
@@ -2207,6 +2249,7 @@
 
     function renderHome() {
       renderHomeTodayCards();
+      renderHomeMemoCard();
       renderHomeWeek();
     }
 
@@ -2228,6 +2271,39 @@
           ${metricCardsForDateHTML(homeDate)}
         </div>
       `;
+    }
+
+    function memoRowsForDate(dateValue) {
+      return RECORD_TYPE_ORDER.map(typeKey => {
+        const record = recordForDateType(dateValue, typeKey);
+        const memo = String(record?.payload?.memo || "").trim();
+        return memo ? { typeKey, memo } : null;
+      }).filter(Boolean);
+    }
+
+    function homeMemoCardHTML(dateValue) {
+      const memoRows = memoRowsForDate(dateValue);
+      if (!memoRows.length) return "";
+      return `
+        <article class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
+          <div class="home-memo-head">
+            <h3 class="home-memo-title">그날의 메모</h3>
+            <span class="home-memo-count">${memoRows.length}개</span>
+          </div>
+          <div class="home-memo-list">
+            ${memoRows.map(row => `
+              <div class="home-memo-item">
+                <strong class="home-memo-label">${escapeHTML(metricDisplayLabel(row.typeKey))}</strong>
+                <p class="home-memo-text">${escapeHTML(row.memo)}</p>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      `;
+    }
+
+    function renderHomeMemoCard() {
+      document.querySelector("#homeMemoCard").innerHTML = homeMemoCardHTML(state.homeDate);
     }
 
     function renderHomeWeek() {
@@ -2456,12 +2532,12 @@
 
     function detailFields(record) {
       const p = record.payload || {};
-      if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType]];
+      if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType], ["메모", p.memo]];
       if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
       if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["마신 양", p.amount], ["메모", p.memo]];
       if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
-      if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""]];
-      if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""]];
+      if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
+      if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
       return [];
     }
 
@@ -3168,6 +3244,7 @@
           ${choiceField("운동 종류", "exerciseType", [["테니스", "테니스"], ["자전거", "자전거"], ["걷기", "걷기"], ["런닝", "런닝"], ["기타", "기타"]], exerciseType, { full: true })}
           ${inputField("운동시간", "durationMinutes", "number", value("durationMinutes"), "분")}
           ${selectField("강도", "intensity", ["", "낮음", "보통", "높음"], intensity)}
+          ${textareaField("메모", "memo", value("memo"))}
         `,
         meal: `
           ${choiceField("점심", "lunchAmount", [["overeaten", "과식"], ["normal", "적정"], ["small", "소식"]], value("lunchAmount"))}
@@ -3187,10 +3264,12 @@
         `,
         weight: `
           ${inputField("무게", "weightKg", "number", value("weightKg"), "kg", "0.1")}
+          ${textareaField("메모", "memo", value("memo"))}
         `,
         reading: `
           ${inputField("오늘 읽은 페이지", "todayPages", "number", value("todayPages"), "페이지")}
           ${inputField("오늘 독서 시간", "todayMinutes", "number", value("todayMinutes"), "분")}
+          ${textareaField("메모", "memo", value("memo"))}
         `
       };
       document.querySelector("#dynamicFields").innerHTML = fields[type] || "";
@@ -3201,7 +3280,7 @@
     }
 
     function textareaField(label, name, value) {
-      return `<label class="label full">${label}<textarea class="textarea" name="${name}" rows="3" placeholder="선택 사항">${value}</textarea></label>`;
+      return `<label class="label full">${label}<textarea class="textarea" name="${name}" rows="2" placeholder="선택 사항">${value}</textarea></label>`;
     }
 
     function selectField(label, name, options, selected) {
@@ -3231,15 +3310,15 @@
         const value = Number(get(key));
         return Number.isFinite(value) && get(key) !== "" ? value : "";
       };
-      if (type === "exercise") return { durationMinutes: number("durationMinutes"), intensity: get("intensity"), exerciseType: get("exerciseType") };
+      if (type === "exercise") return { durationMinutes: number("durationMinutes"), intensity: get("intensity"), exerciseType: get("exerciseType"), memo: get("memo") };
       if (type === "meal") return { lunchAmount: get("lunchAmount"), dinnerAmount: get("dinnerAmount"), memo: get("memo") };
       if (type === "alcohol") {
         const drinkLevel = get("drinkLevel") || "none";
         return { drinkLevel, didDrink: drinkLevel === "none" ? "no" : "yes", drinkType: get("drinkType"), amount: get("amount"), memo: get("memo") };
       }
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
-      if (type === "weight") return { weightKg: number("weightKg") };
-      if (type === "reading") return { todayPages: number("todayPages"), todayMinutes: number("todayMinutes") };
+      if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
+      if (type === "reading") return { todayPages: number("todayPages"), todayMinutes: number("todayMinutes"), memo: get("memo") };
       return {};
     }
 
