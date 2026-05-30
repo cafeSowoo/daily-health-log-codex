@@ -464,11 +464,13 @@
       font-weight: 900;
       line-height: 1;
       letter-spacing: 0;
+      cursor: pointer;
     }
     .home-score-badge.score-high { background: #d9edd1; border-color: rgba(66, 114, 53, 0.14); color: #2f6026; }
     .home-score-badge.score-good { background: #f4e5b8; border-color: rgba(139, 100, 40, 0.14); color: #755016; }
     .home-score-badge.score-mid { background: #f3d4bd; border-color: rgba(154, 85, 47, 0.14); color: #8d4326; }
     .home-score-badge.score-low { background: #f1c1bb; border-color: rgba(168, 67, 54, 0.14); color: #96362c; }
+    .home-score-badge.score-pending { background: #eee9e4; border-color: rgba(134, 117, 107, 0.16); color: var(--muted); }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -818,6 +820,61 @@
     .input:focus, .select:focus, .textarea:focus { border-color: rgba(155, 106, 74, 0.55); box-shadow: 0 0 0 3px rgba(155, 106, 74, 0.12); }
     .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
     .sheet-actions .btn { flex: 1; }
+    .score-total {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 6px 0 16px;
+      font-size: 30px;
+      font-weight: 900;
+      color: var(--text);
+    }
+    .score-total span {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 850;
+    }
+    #scoreSheetTotal.score-high { color: #2f6026; }
+    #scoreSheetTotal.score-good { color: #755016; }
+    #scoreSheetTotal.score-mid { color: #8d4326; }
+    #scoreSheetTotal.score-low { color: #96362c; }
+    #scoreSheetTotal.score-pending { color: var(--muted); }
+    .score-breakdown {
+      display: grid;
+      gap: 9px;
+    }
+    .score-row {
+      display: grid;
+      gap: 6px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fffaf6;
+    }
+    .score-row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .score-row-label {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .score-row-value {
+      color: var(--primary-dark);
+      font-size: 15px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+    .score-row-reason {
+      margin: 0;
+      color: #57463c;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.45;
+    }
 
     .toast {
       position: fixed;
@@ -1201,6 +1258,20 @@
     </div>
   </section>
 
+  <section id="scoreSheet" class="sheet" aria-hidden="true">
+    <button class="sheet-backdrop" type="button" data-close-score-sheet aria-label="점수 산정 닫기"></button>
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <div>
+          <h3 class="sheet-title" id="scoreSheetTitle">오늘 점수</h3>
+        </div>
+        <button class="btn icon-btn" type="button" data-close-score-sheet aria-label="닫기"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="score-total"><strong id="scoreSheetTotal">0</strong><span>/ 100</span></div>
+      <div class="score-breakdown" id="scoreBreakdown"></div>
+    </div>
+  </section>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -1333,6 +1404,11 @@
 
     function moveHomeDate(delta) {
       setHomeDate(addDays(state.homeDate, delta), { direction: delta });
+    }
+
+    function homeDateDirectionTo(targetDate) {
+      if (targetDate === state.homeDate) return 0;
+      return targetDate > state.homeDate ? 1 : -1;
     }
 
     function daysInMonth(monthValue) {
@@ -1780,11 +1856,106 @@
         scoreReading(recordForDateType(dateValue, "reading"));
     }
 
+    function scoreInputCountForDate(dateValue) {
+      return ["exercise", "meal", "alcohol", "mood", "reading"]
+        .filter(type => recordForDateType(dateValue, type)).length;
+    }
+
+    function scoreDisplayForDate(dateValue) {
+      const inputCount = scoreInputCountForDate(dateValue);
+      const isReady = inputCount >= 4;
+      const score = dailyScoreForDate(dateValue);
+      return {
+        inputCount,
+        isReady,
+        score,
+        label: isReady ? String(score) : "-",
+        toneClass: isReady ? scoreToneClass(score) : "score-pending"
+      };
+    }
+
     function scoreToneClass(score) {
       if (score >= 80) return "score-high";
       if (score >= 60) return "score-good";
       if (score >= 40) return "score-mid";
       return "score-low";
+    }
+
+    function compactExerciseType(value) {
+      return exerciseTypeLabel(value).replace(/^[^\s]+?\s/u, "") || "운동";
+    }
+
+    function exerciseScoreReason(record) {
+      if (!record) return "운동 기록 없음";
+      const p = record.payload || {};
+      const minutes = Number(p.durationMinutes || 0);
+      const type = compactExerciseType(p.exerciseType);
+      const intensity = p.intensity || "강도 미입력";
+      if (!minutes) return "운동시간 미입력";
+      if (p.intensity === "낮음" && minutes < 40) return `${type} ${minutes}분, 강도 낮음은 40분 목표`;
+      if (!p.intensity && minutes >= 30) return `${type} ${minutes}분, 강도 미입력이라 만점 제외`;
+      if (!p.exerciseType && minutes >= 30) return `${minutes}분 완료, 운동 종류 미입력이라 만점 제외`;
+      return `${type} ${minutes}분, 강도 ${intensity}`;
+    }
+
+    function mealScoreReason(record) {
+      if (!record) return "식사 기록 없음";
+      const lunch = mealAmountLabel(record.payload?.lunchAmount) || "미입력";
+      const dinner = mealAmountLabel(record.payload?.dinnerAmount) || "미입력";
+      const hasLunchOvereaten = lunch === "과식";
+      const hasDinnerOvereaten = dinner === "과식";
+      if (hasLunchOvereaten && hasDinnerOvereaten) return "두 끼 과식";
+      if (hasDinnerOvereaten) return `저녁 과식 포함 (${lunch} + ${dinner})`;
+      if (hasLunchOvereaten) return `점심 과식 포함 (${lunch} + ${dinner})`;
+      return `점심 ${lunch} + 저녁 ${dinner}`;
+    }
+
+    function alcoholScoreReason(record) {
+      if (!record) return "음주 기록 없음";
+      const level = alcoholLevel(record.payload);
+      return { none: "금주", moderate: "적당히 마심", heavy: "과음" }[level] || "음주 기록 있음";
+    }
+
+    function moodScoreReason(record) {
+      if (!record) return "마음 기록 없음";
+      const p = record.payload || {};
+      const mood = moodLabel(p.level) || "미입력";
+      const work = moodLabel(p.workLevel) || "미입력";
+      return `마음 ${mood} + 업무 ${work}`;
+    }
+
+    function readingScoreReason(record) {
+      if (!record) return "독서 기록 없음";
+      const pages = Number(record.payload?.todayPages || 0);
+      if (!pages) return "읽은 페이지 미입력";
+      return pages >= 30 ? `${pages}페이지, 목표 달성` : `${pages}페이지 읽음`;
+    }
+
+    function scoreBreakdownForDate(dateValue) {
+      const exercise = recordForDateType(dateValue, "exercise");
+      const meal = recordForDateType(dateValue, "meal");
+      const alcohol = recordForDateType(dateValue, "alcohol");
+      const mood = recordForDateType(dateValue, "mood");
+      const reading = recordForDateType(dateValue, "reading");
+      return [
+        { label: "운동", reason: exerciseScoreReason(exercise), score: scoreExercise(exercise) },
+        { label: "식사", reason: mealScoreReason(meal), score: scoreMeal(meal) },
+        { label: "음주", reason: alcoholScoreReason(alcohol), score: scoreAlcohol(alcohol) },
+        { label: "마음", reason: moodScoreReason(mood), score: scoreMood(mood) },
+        { label: "독서", reason: readingScoreReason(reading), score: scoreReading(reading) }
+      ];
+    }
+
+    function scoreBreakdownHTML(rows) {
+      return rows.map(row => `
+        <article class="score-row">
+          <div class="score-row-head">
+            <strong class="score-row-label">${escapeHTML(row.label)}</strong>
+            <strong class="score-row-value">${row.score}점</strong>
+          </div>
+          <p class="score-row-reason">${escapeHTML(row.reason)}</p>
+        </article>
+      `).join("");
     }
 
     function recordForDateType(dateValue, type, excludeId = "") {
@@ -1953,7 +2124,7 @@
     function renderHomeTodayCards() {
       const homeDate = state.homeDate;
       const isToday = homeDate === todayIso;
-      const dailyScore = dailyScoreForDate(homeDate);
+      const scoreDisplay = scoreDisplayForDate(homeDate);
       document.querySelector("#homeTodayCards").innerHTML = `
         <div class="home-date-nav" aria-label="Home 기준 날짜 이동">
           <button class="btn icon-btn" type="button" data-home-date-prev aria-label="전날"><span class="material-symbols-outlined">chevron_left</span></button>
@@ -1961,7 +2132,7 @@
             <span class="today-date-label">${formatDateKo(homeDate)}</span>
           </button>
           <button class="btn btn-ghost home-date-today ${isToday ? "is-today" : ""}" type="button" data-home-date-today>오늘</button>
-          <span class="home-score-badge ${scoreToneClass(dailyScore)}" aria-label="${formatDateKo(homeDate)} 점수 ${dailyScore}점">${dailyScore}</span>
+          <button class="home-score-badge ${scoreDisplay.toneClass}" type="button" data-score-breakdown aria-label="${formatDateKo(homeDate)} ${scoreDisplay.isReady ? `점수 ${scoreDisplay.score}점` : `점수 미산정, 입력 ${scoreDisplay.inputCount}개`}">${scoreDisplay.label}</button>
           <button class="btn icon-btn" type="button" data-home-date-next aria-label="다음날"><span class="material-symbols-outlined">chevron_right</span></button>
         </div>
         <div class="today-metrics">
@@ -2478,6 +2649,26 @@
       document.querySelector("#recordId").value = "";
     }
 
+    function openScoreSheet(dateValue = state.homeDate) {
+      const rows = scoreBreakdownForDate(dateValue);
+      const scoreDisplay = scoreDisplayForDate(dateValue);
+      const sheet = document.querySelector("#scoreSheet");
+      const totalNode = document.querySelector("#scoreSheetTotal");
+      document.querySelector("#scoreSheetTitle").textContent = `${formatDateKo(dateValue)} 점수`;
+      totalNode.className = scoreDisplay.toneClass;
+      totalNode.textContent = scoreDisplay.label;
+      document.querySelector("#scoreBreakdown").innerHTML = scoreBreakdownHTML(rows);
+      sheet.classList.add("open");
+      sheet.setAttribute("aria-hidden", "false");
+    }
+
+    function closeScoreSheet() {
+      const sheet = document.querySelector("#scoreSheet");
+      sheet.classList.remove("open");
+      sheet.setAttribute("aria-hidden", "true");
+      document.querySelector("#scoreBreakdown").innerHTML = "";
+    }
+
     function renderSheetTypeBadge() {
       const selected = document.querySelector("#recordType").value;
       const type = recordTypes[selected] || recordTypes.exercise;
@@ -2665,16 +2856,22 @@
         openSheet({ date: quickType.dataset.recordDate || state.homeDate, type: quickType.dataset.quickType });
         return;
       }
+      if (event.target.closest("[data-score-breakdown]")) {
+        openScoreSheet(state.homeDate);
+        return;
+      }
       if (event.target.closest("[data-home-date-prev]")) {
-        setHomeDate(addDays(state.homeDate, -1));
+        moveHomeDate(-1);
         return;
       }
       if (event.target.closest("[data-home-date-next]")) {
-        setHomeDate(addDays(state.homeDate, 1));
+        moveHomeDate(1);
         return;
       }
       if (event.target.closest("[data-home-date-today]")) {
-        setHomeDate(todayIso);
+        const direction = homeDateDirectionTo(todayIso);
+        if (!direction) return;
+        setHomeDate(todayIso, { direction });
         return;
       }
       if (event.target.closest("[data-home-date-calendar]")) {
@@ -2688,6 +2885,10 @@
       }
       if (event.target.closest("[data-close-sheet]")) {
         closeSheet();
+        return;
+      }
+      if (event.target.closest("[data-close-score-sheet]")) {
+        closeScoreSheet();
         return;
       }
       if (event.target.closest("[data-detail-back]")) {
