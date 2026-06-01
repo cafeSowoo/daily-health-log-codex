@@ -535,7 +535,6 @@
       gap: 10px;
       margin-top: 14px;
     }
-    .home-memo-actions .home-ai-feedback-btn { grid-column: 1 / -1; }
     .home-memo-actions .btn {
       width: 100%;
       justify-content: center;
@@ -574,6 +573,16 @@
       font-weight: 700;
       line-height: 1.55;
       white-space: pre-line;
+    }
+    .home-ai-feedback-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .home-ai-feedback-actions .btn {
+      width: 100%;
+      justify-content: center;
     }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
@@ -2487,6 +2496,14 @@
             <span class="home-ai-feedback-model">${escapeHTML(feedback.model || "gpt-5-nano")}</span>
           </div>
           <p class="home-ai-feedback-text">${escapeHTML(feedback.feedbackText)}</p>
+          <div class="home-ai-feedback-actions">
+            <button class="btn btn-ghost" type="button" data-delete-feedback data-feedback-date="${escapeHTML(feedback.date)}">
+              <span class="material-symbols-outlined">delete</span>AI 피드백 삭제
+            </button>
+            <button class="btn btn-ghost" type="button" data-generate-feedback data-feedback-date="${escapeHTML(feedback.date)}" data-force="1">
+              <span class="material-symbols-outlined">auto_awesome</span>AI 피드백 다시 받기
+            </button>
+          </div>
         </div>
       `;
     }
@@ -2519,9 +2536,11 @@
           </div>
           ${feedbackCardHTML(feedback)}
           <div class="home-memo-actions">
-            <button class="btn btn-ghost home-ai-feedback-btn" type="button" data-generate-feedback data-feedback-date="${escapeHTML(dateValue)}" data-force="${feedback ? "1" : "0"}" ${feedbackLoading ? "disabled" : ""}>
-              <span class="material-symbols-outlined">${feedbackLoading ? "hourglass_top" : "auto_awesome"}</span>${feedbackLoading ? "피드백 생성 중" : feedback ? "AI 피드백 다시 받기" : "AI 피드백 받기"}
-            </button>
+            ${feedback ? "" : `
+              <button class="btn btn-ghost home-ai-feedback-btn" type="button" data-generate-feedback data-feedback-date="${escapeHTML(dateValue)}" data-force="0" ${feedbackLoading ? "disabled" : ""}>
+                <span class="material-symbols-outlined">${feedbackLoading ? "hourglass_top" : "auto_awesome"}</span>${feedbackLoading ? "피드백 생성 중" : "AI 피드백 받기"}
+              </button>
+            `}
             <button class="btn btn-ghost" type="button" data-open-day-memo>
               <span class="material-symbols-outlined">edit_note</span>오늘의 메모
             </button>
@@ -2834,6 +2853,27 @@
       if (index >= 0) feedbacks[index] = feedback;
       else feedbacks.push(feedback);
       feedbacks.sort(compareRecords);
+    }
+
+    async function deleteDailyFeedback(dateValue) {
+      const feedback = feedbackForDate(dateValue);
+      if (!feedback) return;
+      if (!confirm("AI 피드백을 삭제할까요?")) return;
+
+      if (supabaseClient && !canUseLocalFallback() && feedback.source === "supabase") {
+        if (!isOwnerSignedIn()) throw new Error(`${OWNER_EMAIL} 계정으로 로그인해야 AI 피드백을 삭제할 수 있습니다.`);
+        const { error } = await supabaseQuery(
+          supabaseClient.from("codex_daily_feedbacks").delete().eq("id", feedback.id),
+          "AI 피드백 삭제 응답이 지연되고 있습니다."
+        );
+        if (error) throw error;
+      } else {
+        saveLocalFeedbacks(localFeedbacks().filter(item => item.id !== feedback.id && item.date !== feedback.date));
+      }
+
+      feedbacks = feedbacks.filter(item => item.id !== feedback.id && item.date !== feedback.date);
+      renderHomeMemoCard();
+      showToast("AI 피드백을 삭제했습니다.");
     }
 
     async function generateDailyFeedback(dateValue, { force = false } = {}) {
@@ -3885,6 +3925,12 @@
       }
       if (event.target.closest("[data-score-breakdown]")) {
         openScoreSheet(state.homeDate);
+        return;
+      }
+      const deleteFeedbackButton = event.target.closest("[data-delete-feedback]") || closestFromPoint("[data-delete-feedback]", event.clientX, event.clientY);
+      if (deleteFeedbackButton) {
+        const dateValue = deleteFeedbackButton.dataset.feedbackDate || state.homeDate;
+        deleteDailyFeedback(dateValue).catch(error => showToast(error.message || "AI 피드백을 삭제하지 못했습니다."));
         return;
       }
       const feedbackButton = event.target.closest("[data-generate-feedback]") || closestFromPoint("[data-generate-feedback]", event.clientX, event.clientY);
