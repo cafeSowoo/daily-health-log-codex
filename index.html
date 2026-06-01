@@ -522,9 +522,21 @@
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
     }
-    .home-copy-day-btn {
-      width: 100%;
+    .home-memo-empty {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+    .home-memo-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
       margin-top: 14px;
+    }
+    .home-memo-actions .btn {
+      width: 100%;
       justify-content: center;
     }
     .home-block { margin-top: 18px; }
@@ -721,18 +733,29 @@
       color: #fffaf6;
       box-shadow: 0 10px 24px rgba(112, 71, 47, 0.2);
     }
-    .chart-canvas { margin-top: 10px; }
+    .chart-canvas {
+      margin-top: 10px;
+      overflow-x: clip;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     .chart-canvas svg { display: block; width: 100%; height: auto; overflow: visible; }
     .chart-grid-line { stroke: rgba(124, 92, 70, 0.16); stroke-width: 1; }
-    .chart-axis-text { fill: var(--faint); font-size: 11px; font-weight: 700; font-family: inherit; }
+    .chart-axis-text { fill: var(--faint); font-size: 26px; font-weight: 750; font-family: inherit; }
     .chart-axis-text.is-today { fill: var(--primary-dark); font-weight: 800; }
-    .chart-dot { stroke: #fffdfb; stroke-width: 2; }
-    .chart-dot-emoji { font-size: 15px; text-anchor: middle; }
-    .chart-dot-value { fill: var(--muted); font-size: 10px; font-weight: 800; text-anchor: middle; font-family: inherit; }
+    .chart-line { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; opacity: 0.72; }
+    .chart-dot { stroke: #fffdfb; stroke-width: 3; }
+    .chart-dot-emoji { font-size: 54px; text-anchor: middle; }
+    .chart-dot-value { fill: var(--muted); font-size: 26px; font-weight: 850; text-anchor: middle; font-family: inherit; }
+    .chart-bar {
+      filter: drop-shadow(0 8px 12px rgba(77, 54, 37, 0.12));
+    }
+    .chart-bar-value { fill: var(--muted); font-size: 26px; font-weight: 850; text-anchor: middle; font-family: inherit; }
     .chart-empty {
       display: grid;
       place-items: center;
-      min-height: 180px;
+      min-height: 320px;
       color: var(--muted);
       font-size: 14px;
       font-weight: 750;
@@ -1314,6 +1337,7 @@
             <option value="mood">마음</option>
             <option value="weight">무게</option>
             <option value="reading">독서</option>
+            <option value="memo">메모</option>
           </select>
         </div>
         <div class="form-grid" id="dynamicFields" style="margin-top:12px;"></div>
@@ -1358,7 +1382,8 @@
       alcohol: { label: "음주", icon: "local_bar" },
       mood: { label: "마음", icon: "mood" },
       weight: { label: "무게", icon: "monitor_weight" },
-      reading: { label: "독서", icon: "menu_book" }
+      reading: { label: "독서", icon: "menu_book" },
+      memo: { label: "메모", icon: "edit_note" }
     };
     const RECORD_TYPE_ORDER = ["exercise", "meal", "alcohol", "mood", "weight", "reading"];
 
@@ -1374,8 +1399,9 @@
       remoteFailed: false
     };
     const authState = { initialized: false, session: null, user: null };
-    const chartState = { metric: "exercise" };
+    const chartState = { metric: "exercise", weekStart: startOfWeekIso(todayIso) };
     let calendarDrag = null;
+    let statsChartDrag = null;
     let suppressCalendarClick = false;
     let records = [];
     let toastTimer = 0;
@@ -1481,6 +1507,41 @@
     function homeDateDirectionTo(targetDate) {
       if (targetDate === state.homeDate) return 0;
       return targetDate > state.homeDate ? 1 : -1;
+    }
+
+    function activateMetricCard(card) {
+      if (!card) return false;
+      if (card.dataset.recordId) {
+        const record = records.find(item => item.id === card.dataset.recordId);
+        if (record) {
+          openSheet({ record });
+          return true;
+        }
+        return false;
+      }
+      if (card.dataset.quickType) {
+        openSheet({ date: card.dataset.recordDate || state.homeDate, type: card.dataset.quickType });
+        return true;
+      }
+      return false;
+    }
+
+    function metricCardFromPoint(x, y, root = document) {
+      const stack = typeof document.elementsFromPoint === "function"
+        ? document.elementsFromPoint(x, y)
+        : [document.elementFromPoint(x, y)].filter(Boolean);
+      return stack
+        .map(element => element.closest?.(".metric-card[data-quick-type], .metric-card[data-record-id]"))
+        .find(card => card && root.contains(card)) || null;
+    }
+
+    function closestFromPoint(selector, x, y, root = document) {
+      const stack = typeof document.elementsFromPoint === "function"
+        ? document.elementsFromPoint(x, y)
+        : [document.elementFromPoint(x, y)].filter(Boolean);
+      return stack
+        .map(element => element.closest?.(selector))
+        .find(target => target && root.contains(target)) || null;
     }
 
     function daysInMonth(monthValue) {
@@ -2281,26 +2342,42 @@
       }).filter(Boolean);
     }
 
+    function dayMemoText(dateValue) {
+      return String(recordForDateType(dateValue, "memo")?.payload?.memo || "").trim();
+    }
+
     function homeMemoCardHTML(dateValue) {
       const memoRows = memoRowsForDate(dateValue);
-      if (!memoRows.length) return "";
+      const dayMemo = dayMemoText(dateValue);
+      const memoCount = memoRows.length + (dayMemo ? 1 : 0);
       return `
         <article class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
           <div class="home-memo-head">
             <h3 class="home-memo-title">그날의 메모</h3>
-            <span class="home-memo-count">${memoRows.length}개</span>
+            <span class="home-memo-count">${memoCount}개</span>
           </div>
           <div class="home-memo-list">
-            ${memoRows.map(row => `
+            ${memoRows.length || dayMemo ? memoRows.map(row => `
               <div class="home-memo-item">
                 <strong class="home-memo-label">${escapeHTML(metricDisplayLabel(row.typeKey))}</strong>
                 <p class="home-memo-text">${escapeHTML(row.memo)}</p>
               </div>
-            `).join("")}
+            `).join("") : `<p class="home-memo-empty">아직 메모가 없습니다.</p>`}
+            ${dayMemo ? `
+              <div class="home-memo-item">
+                <strong class="home-memo-label">메모</strong>
+                <p class="home-memo-text">${escapeHTML(dayMemo)}</p>
+              </div>
+            ` : ""}
           </div>
-          <button class="btn btn-ghost home-copy-day-btn" type="button" data-copy-day-log>
-            <span class="material-symbols-outlined">content_copy</span>오늘하루 복사하기
-          </button>
+          <div class="home-memo-actions">
+            <button class="btn btn-ghost" type="button" data-open-day-memo>
+              <span class="material-symbols-outlined">edit_note</span>오늘의 메모
+            </button>
+            <button class="btn btn-ghost home-copy-day-btn" type="button" data-copy-day-log>
+              <span class="material-symbols-outlined">content_copy</span>오늘하루 복사하기
+            </button>
+          </div>
         </article>
       `;
     }
@@ -2483,7 +2560,7 @@
     function renderRecords() {
       const root = document.querySelector("#recordsGroups");
       const dateSource = state.typeFilter === "all"
-        ? records
+        ? records.filter(item => RECORD_TYPE_ORDER.includes(item.type))
         : records.filter(item => item.type === state.typeFilter);
       const dates = Array.from(new Set(dateSource.map(item => item.date))).sort((a, b) => b.localeCompare(a));
       if (!dates.length) {
@@ -2492,7 +2569,7 @@
       }
       const typeKeys = state.typeFilter === "all" ? RECORD_TYPE_ORDER : [state.typeFilter];
       root.innerHTML = dates.map(date => {
-        const recordCount = recordsForDate(date).filter(item => state.typeFilter === "all" || item.type === state.typeFilter).length;
+        const recordCount = recordsForDate(date).filter(item => state.typeFilter === "all" ? RECORD_TYPE_ORDER.includes(item.type) : item.type === state.typeFilter).length;
         return `
         <section>
           <h4 class="group-title">${formatDateKo(date)} · ${recordCount}개</h4>
@@ -2541,6 +2618,7 @@
       if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
       if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
       if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
+      if (record.type === "memo") return [["메모", p.memo]];
       return [];
     }
 
@@ -2548,10 +2626,12 @@
       const dayRecords = RECORD_TYPE_ORDER
         .map(typeKey => recordForDateType(dateValue, typeKey))
         .filter(Boolean);
+      const dayMemo = recordForDateType(dateValue, "memo");
+      const allRecords = dayMemo ? [...dayRecords, dayMemo] : dayRecords;
 
-      if (!dayRecords.length) return "";
+      if (!allRecords.length) return "";
 
-      const sections = dayRecords.map(record => {
+      const sections = allRecords.map(record => {
         const type = recordTypes[record.type] || recordTypes.exercise;
         const lines = detailFields(record)
           .filter(([, value]) => String(value || "").trim())
@@ -2594,19 +2674,31 @@
 
     const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
+    function exerciseIntensityColor(value) {
+      return { "낮음": "#427235", "보통": "#8b6428", "높음": "#a84336" }[value] || "#9b6a4a";
+    }
+
     const statsChartMetrics = {
       exercise: {
         label: "운동", icon: "fitness_center", color: "#9b6a4a",
+        chart: "bar",
         axis: { type: "numeric", unit: "분", min: 0 },
+        legend: [
+          { label: "낮음", color: exerciseIntensityColor("낮음") },
+          { label: "보통", color: exerciseIntensityColor("보통") },
+          { label: "높음", color: exerciseIntensityColor("높음") }
+        ],
         points(iso) {
           const record = recordForDateType(iso, "exercise");
           const minutes = Number(record?.payload?.durationMinutes || 0);
           if (!record || !minutes) return [];
-          return [{ y: minutes, emoji: exerciseEmoji(record.payload?.exerciseType), valueLabel: `${minutes}분` }];
+          const intensity = record.payload?.intensity || "";
+          return [{ y: minutes, color: exerciseIntensityColor(intensity), emoji: exerciseEmoji(record.payload?.exerciseType), valueLabel: `${minutes}분`, intensity }];
         }
       },
       meal: {
         label: "식사", icon: "restaurant", color: "#c98b4b",
+        line: true,
         axis: { type: "level", ticks: ["소식", "적정", "과식"] },
         legend: [{ label: "점심 ☀️", color: "#c98b4b" }, { label: "저녁 🌙", color: "#6b6aa8" }],
         points(iso) {
@@ -2616,8 +2708,8 @@
           const out = [];
           const lunch = record.payload?.lunchAmount;
           const dinner = record.payload?.dinnerAmount;
-          if (index[lunch] !== undefined) out.push({ y: index[lunch], emoji: "☀️", color: "#c98b4b", valueLabel: mealAmountLabel(lunch) });
-          if (index[dinner] !== undefined) out.push({ y: index[dinner], emoji: "🌙", color: "#6b6aa8", valueLabel: mealAmountLabel(dinner) });
+          if (index[lunch] !== undefined) out.push({ y: index[lunch], emoji: "☀️", color: "#c98b4b", series: "lunch", endpointEmojiOnly: true, valueLabel: mealAmountLabel(lunch) });
+          if (index[dinner] !== undefined) out.push({ y: index[dinner], emoji: "🌙", color: "#6b6aa8", series: "dinner", endpointEmojiOnly: true, valueLabel: mealAmountLabel(dinner) });
           return out;
         }
       },
@@ -2634,6 +2726,7 @@
       },
       mood: {
         label: "마음", icon: "mood", color: "#7f8d67",
+        line: true,
         axis: { type: "level", ticks: ["매우 나쁨", "나쁨", "보통", "좋음", "매우 좋음"] },
         points(iso) {
           const record = recordForDateType(iso, "mood");
@@ -2645,6 +2738,7 @@
       },
       weight: {
         label: "무게", icon: "monitor_weight", color: "#bf8260",
+        line: true,
         axis: { type: "numeric", unit: "kg" },
         points(iso) {
           const record = recordForDateType(iso, "weight");
@@ -2655,6 +2749,7 @@
       },
       reading: {
         label: "독서", icon: "menu_book", color: "#70472f",
+        line: true,
         axis: { type: "numeric", unit: "p", min: 0 },
         points(iso) {
           const record = recordForDateType(iso, "reading");
@@ -2666,7 +2761,7 @@
     };
 
     function currentWeekDays() {
-      const start = new Date(`${startOfWeekIso()}T00:00:00`);
+      const start = new Date(`${chartState.weekStart}T00:00:00`);
       return Array.from({ length: 7 }, (_, index) => {
         const date = new Date(start);
         date.setDate(start.getDate() + index);
@@ -2683,10 +2778,10 @@
     function buildChartSVG(metric, days, dayPoints) {
       const flat = dayPoints.flat();
       if (!flat.length) {
-        return `<div class="chart-empty">이번주에는 ${escapeHTML(metric.label)} 기록이 아직 없습니다.</div>`;
+        return `<div class="chart-empty">이 주에는 ${escapeHTML(metric.label)} 기록이 아직 없습니다.</div>`;
       }
 
-      const W = 720, H = 248, padL = 48, padR = 18, padT = 28, padB = 30;
+      const W = 720, H = 496, padL = 82, padR = 36, padT = 114, padB = 66;
       const plotW = W - padL - padR;
       const plotH = H - padT - padB;
       const bandW = plotW / 7;
@@ -2716,24 +2811,73 @@
       }
 
       const gridLines = ticks.map(tick => `<line class="chart-grid-line" x1="${padL}" y1="${tick.py.toFixed(1)}" x2="${W - padR}" y2="${tick.py.toFixed(1)}"></line>`).join("");
-      const yLabels = ticks.map(tick => `<text class="chart-axis-text" x="${padL - 8}" y="${(tick.py + 3.5).toFixed(1)}" text-anchor="end">${escapeHTML(tick.label)}</text>`).join("");
-      const xLabels = days.map((day, index) => `<text class="chart-axis-text ${day.isToday ? "is-today" : ""}" x="${xFor(index).toFixed(1)}" y="${H - padB + 20}" text-anchor="middle">${day.dow} ${day.day}</text>`).join("");
+      const yLabels = ticks.map(tick => `<text class="chart-axis-text" x="${padL - 12}" y="${(tick.py + 8).toFixed(1)}" text-anchor="end">${escapeHTML(tick.label)}</text>`).join("");
+      const xLabels = days.map((day, index) => `<text class="chart-axis-text ${day.isToday ? "is-today" : ""}" x="${xFor(index).toFixed(1)}" y="${H - padB + 42}" text-anchor="middle">${day.dow} ${day.day}</text>`).join("");
+
+      const bars = metric.chart === "bar"
+        ? days.map((day, index) => {
+          const point = dayPoints[index][0];
+          if (!point) return "";
+          const cx = xFor(index);
+          const baseline = yToPx(metric.axis.min ?? 0);
+          const top = yToPx(point.y);
+          const height = Math.max(8, baseline - top);
+          const width = Math.min(48, bandW * 0.46);
+          const x = cx - width / 2;
+          const labelY = Math.max(28, top - 72);
+          const emojiY = Math.max(62, top - 28);
+          const emoji = point.emoji
+            ? `<text class="chart-dot-emoji" x="${cx.toFixed(1)}" y="${emojiY.toFixed(1)}">${point.emoji}</text>`
+            : "";
+          return `
+            <text class="chart-bar-value" x="${cx.toFixed(1)}" y="${labelY.toFixed(1)}">${escapeHTML(point.valueLabel || "")}</text>
+            ${emoji}
+            <rect class="chart-bar" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" rx="14" fill="${point.color || metric.color}"></rect>
+          `;
+        }).join("")
+        : "";
+
+      const lineSeries = metric.line
+        ? Array.from(new Set(dayPoints.flat().map(point => point.series || "default"))).map(series => {
+          const points = dayPoints.map((points, index) => {
+            const point = points.find(item => (item.series || "default") === series);
+            if (!point) return null;
+            return { x: xFor(index), y: yToPx(point.y), color: point.color || metric.color };
+          }).filter(Boolean);
+          if (points.length < 2) return "";
+          const path = points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+          return `<polyline class="chart-line" points="${path}" stroke="${points[0].color}"></polyline>`;
+        }).join("")
+        : "";
+      const endpointEmojiKeys = new Set();
+      if (metric.line) {
+        Array.from(new Set(dayPoints.flat().filter(point => point.endpointEmojiOnly).map(point => point.series || "default"))).forEach(series => {
+          const indexes = dayPoints
+            .map((points, index) => points.some(point => point.endpointEmojiOnly && (point.series || "default") === series) ? index : -1)
+            .filter(index => index >= 0);
+          if (!indexes.length) return;
+          endpointEmojiKeys.add(`${series}:${indexes[0]}`);
+          endpointEmojiKeys.add(`${series}:${indexes[indexes.length - 1]}`);
+        });
+      }
 
       const dots = days.map((day, index) => {
+        if (metric.chart === "bar") return "";
         const points = dayPoints[index];
         if (!points.length) return "";
         return points.map((point, offset) => {
-          const spread = points.length > 1 ? (offset - (points.length - 1) / 2) * 13 : 0;
+          const spread = points.length > 1 ? (offset - (points.length - 1) / 2) * 26 : 0;
           const cx = xFor(index) + spread;
           const cy = yToPx(point.y);
           const color = point.color || metric.color;
           const valueLabel = metric.axis.type === "numeric" && point.valueLabel
-            ? `<text class="chart-dot-value" x="${cx.toFixed(1)}" y="${(cy - 24).toFixed(1)}">${escapeHTML(point.valueLabel)}</text>`
+            ? `<text class="chart-dot-value" x="${cx.toFixed(1)}" y="${(cy - 96).toFixed(1)}">${escapeHTML(point.valueLabel)}</text>`
             : "";
-          const emoji = point.emoji
-            ? `<text class="chart-dot-emoji" x="${cx.toFixed(1)}" y="${(cy - 11).toFixed(1)}">${point.emoji}</text>`
+          const showEmoji = point.emoji && (!point.endpointEmojiOnly || endpointEmojiKeys.has(`${point.series || "default"}:${index}`));
+          const emoji = showEmoji
+            ? `<text class="chart-dot-emoji" x="${cx.toFixed(1)}" y="${(cy - 28).toFixed(1)}">${point.emoji}</text>`
             : "";
-          return `${valueLabel}${emoji}<circle class="chart-dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${color}"></circle>`;
+          return `${valueLabel}${emoji}<circle class="chart-dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="12" fill="${color}"></circle>`;
         }).join("");
       }).join("");
 
@@ -2741,7 +2885,7 @@
         ? `<div class="chart-legend">${metric.legend.map(item => `<span class="chart-legend-item"><span class="chart-legend-dot" style="background:${item.color}"></span>${escapeHTML(item.label)}</span>`).join("")}</div>`
         : "";
 
-      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHTML(metric.label)} 주간 추이">${gridLines}${yLabels}${xLabels}${dots}</svg>${legend}`;
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHTML(metric.label)} 주간 추이">${gridLines}${yLabels}${xLabels}${bars}${lineSeries}${dots}</svg>${legend}`;
     }
 
     function renderStatsChart() {
@@ -2758,12 +2902,30 @@
 
       document.querySelector("#statsChartArea").innerHTML = buildChartSVG(metric, days, dayPoints);
 
-      const month = Number(days[0].iso.split("-")[1]);
-      document.querySelector("#statsChartMeta").textContent = `${month}월 ${days[0].day}일 ~ ${days[6].day}일 · ${metric.label}`;
+      document.querySelector("#statsChartMeta").textContent = `${weekRangeLabel(days)} · ${metric.label}`;
     }
 
     function renderStats() {
       renderStatsChart();
+    }
+
+    function weekRangeLabel(days) {
+      const [startYear, startMonth] = days[0].iso.split("-").map(Number);
+      const [endYear, endMonth] = days[6].iso.split("-").map(Number);
+      const startLabel = startYear === endYear
+        ? `${startMonth}월 ${days[0].day}일`
+        : `${startYear}년 ${startMonth}월 ${days[0].day}일`;
+      const endLabel = startYear === endYear && startMonth === endMonth
+        ? `${days[6].day}일`
+        : startYear !== endYear
+          ? `${endYear}년 ${endMonth}월 ${days[6].day}일`
+        : `${endMonth}월 ${days[6].day}일`;
+      return `${startLabel} ~ ${endLabel}`;
+    }
+
+    function moveStatsWeek(delta) {
+      chartState.weekStart = addDays(chartState.weekStart, delta * 7);
+      transitionDateView("#statsChartArea", renderStatsChart, delta);
     }
 
     function renderProfile() {
@@ -3292,6 +3454,9 @@
           ${inputField("오늘 읽은 페이지", "todayPages", "number", value("todayPages"), "페이지")}
           ${inputField("오늘 독서 시간", "todayMinutes", "number", value("todayMinutes"), "분")}
           ${textareaField("메모", "memo", value("memo"))}
+        `,
+        memo: `
+          ${textareaField("오늘의 메모", "memo", value("memo"))}
         `
       };
       document.querySelector("#dynamicFields").innerHTML = fields[type] || "";
@@ -3341,6 +3506,7 @@
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
       if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
       if (type === "reading") return { todayPages: number("todayPages"), todayMinutes: number("todayMinutes"), memo: get("memo") };
+      if (type === "memo") return { memo: get("memo") };
       return {};
     }
 
@@ -3417,10 +3583,21 @@
         return;
       }
 
+      const homeMetricsArea = event.target.closest("#homeTodayCards .today-metrics");
+      if (homeMetricsArea) {
+        const card = metricCardFromPoint(event.clientX, event.clientY, homeMetricsArea);
+        if (activateMetricCard(card)) return;
+      } else {
+        const homeMetricsFromPoint = document.querySelector("#homeTodayCards .today-metrics");
+        if (homeMetricsFromPoint) {
+          const card = metricCardFromPoint(event.clientX, event.clientY, homeMetricsFromPoint);
+          if (activateMetricCard(card)) return;
+        }
+      }
+
       const metricRecordButton = event.target.closest(".metric-card[data-record-id]");
       if (metricRecordButton) {
-        const record = records.find(item => item.id === metricRecordButton.dataset.recordId);
-        if (record) openSheet({ record });
+        activateMetricCard(metricRecordButton);
         return;
       }
 
@@ -3434,15 +3611,19 @@
 
       const quickType = event.target.closest("[data-quick-type]");
       if (quickType) {
-        openSheet({ date: quickType.dataset.recordDate || state.homeDate, type: quickType.dataset.quickType });
+        activateMetricCard(quickType);
         return;
       }
       if (event.target.closest("[data-score-breakdown]")) {
         openScoreSheet(state.homeDate);
         return;
       }
-      if (event.target.closest("[data-copy-day-log]")) {
+      if (event.target.closest("[data-copy-day-log]") || closestFromPoint("[data-copy-day-log]", event.clientX, event.clientY)) {
         copyDayLog(state.homeDate).catch(error => showToast(error.message || "복사하지 못했습니다."));
+        return;
+      }
+      if (event.target.closest("[data-open-day-memo]") || closestFromPoint("[data-open-day-memo]", event.clientX, event.clientY)) {
+        openSheet({ date: state.homeDate, type: "memo" });
         return;
       }
       if (event.target.closest("[data-home-date-prev]")) {
@@ -3771,7 +3952,7 @@
         if (event.target.closest(".home-date-nav")) return;
         if (!event.target.closest(".today-metrics")) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
-        homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+        homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, pointerType: event.pointerType };
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerup", event => {
@@ -3781,7 +3962,15 @@
         const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
         try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
-        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+            const card = metricCardFromPoint(event.clientX, event.clientY, event.currentTarget);
+            if (activateMetricCard(card)) {
+              suppressSwipeClickUntil = Date.now() + 350;
+            }
+          }
+          return;
+        }
         suppressSwipeClickUntil = Date.now() + 350;
         moveHomeDate(dx < 0 ? 1 : -1);
       });
@@ -3790,6 +3979,69 @@
         const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
         try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
+      });
+      const statsChartArea = document.querySelector("#statsChartArea");
+      const resetStatsChartDragStyle = () => {
+        statsChartArea.style.transition = "";
+        statsChartArea.style.transform = "";
+        statsChartArea.style.opacity = "";
+      };
+      statsChartArea.addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        if (event.target.closest("button, a, input, select, textarea")) return;
+        statsChartDrag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          mode: null
+        };
+        try { statsChartArea.setPointerCapture(event.pointerId); } catch (_) {}
+      });
+      statsChartArea.addEventListener("pointermove", event => {
+        if (!statsChartDrag || statsChartDrag.pointerId !== event.pointerId) return;
+        const dx = event.clientX - statsChartDrag.startX;
+        const dy = event.clientY - statsChartDrag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (!statsChartDrag.mode) {
+          if (absDx < 6 && absDy < 6) return;
+          if (absDx > absDy * 1.2) {
+            statsChartDrag.mode = "horizontal";
+          } else {
+            try { statsChartArea.releasePointerCapture(statsChartDrag.pointerId); } catch (_) {}
+            statsChartDrag = null;
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+        const offset = Math.max(-46, Math.min(46, dx * 0.35));
+        statsChartArea.style.transition = "none";
+        statsChartArea.style.transform = `translateX(${offset}px)`;
+        statsChartArea.style.opacity = String(Math.max(0.72, 1 - absDx / 420));
+      });
+      statsChartArea.addEventListener("pointerup", event => {
+        if (!statsChartDrag || statsChartDrag.pointerId !== event.pointerId) return;
+        const dx = event.clientX - statsChartDrag.startX;
+        const dy = event.clientY - statsChartDrag.startY;
+        const mode = statsChartDrag.mode;
+        const pointerId = statsChartDrag.pointerId;
+        statsChartDrag = null;
+        try { statsChartArea.releasePointerCapture(pointerId); } catch (_) {}
+        resetStatsChartDragStyle();
+        if (mode !== "horizontal") return;
+        if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+          suppressSwipeClickUntil = Date.now() + 350;
+          moveStatsWeek(dx < 0 ? 1 : -1);
+        }
+      });
+      statsChartArea.addEventListener("pointercancel", event => {
+        if (!statsChartDrag || statsChartDrag.pointerId !== event.pointerId) return;
+        const pointerId = statsChartDrag.pointerId;
+        statsChartDrag = null;
+        try { statsChartArea.releasePointerCapture(pointerId); } catch (_) {}
+        resetStatsChartDragStyle();
       });
       const calendarCard = document.querySelector("#calendarCard");
       if (calendarCard) {
