@@ -4120,6 +4120,7 @@
       let selectedPanelTouchDrag = null;
       let suppressSelectedPanelClick = false;
       let homeSwipeStart = null;
+      let homeTouchStart = null;
       const selectedDatePanel = document.querySelector("#selectedDatePanel");
 
       document.addEventListener("click", handleDocumentClick);
@@ -4358,9 +4359,16 @@
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerdown", event => {
         if (event.target.closest(".home-date-nav")) return;
-        if (!event.target.closest(".today-metrics")) return;
+        const metricsArea = event.target.closest(".today-metrics");
+        if (!metricsArea) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
-        homeSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, pointerType: event.pointerType };
+        homeSwipeStart = {
+          x: event.clientX,
+          y: event.clientY,
+          pointerId: event.pointerId,
+          pointerType: event.pointerType,
+          card: event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]")
+        };
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
       });
       document.querySelector("#homeTodayCards").addEventListener("pointerup", event => {
@@ -4368,11 +4376,12 @@
         const dx = event.clientX - homeSwipeStart.x;
         const dy = event.clientY - homeSwipeStart.y;
         const pointerId = homeSwipeStart.pointerId;
+        const tapCard = homeSwipeStart.card;
         homeSwipeStart = null;
         try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
         if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) {
-          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
-            const card = metricCardFromPoint(event.clientX, event.clientY, event.currentTarget);
+          if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+            const card = tapCard || metricCardFromPoint(event.clientX, event.clientY, event.currentTarget);
             if (activateMetricCard(card)) {
               suppressSwipeClickUntil = Date.now() + 350;
             }
@@ -4388,6 +4397,36 @@
         homeSwipeStart = null;
         try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
       });
+      document.querySelector("#homeTodayCards").addEventListener("touchstart", event => {
+        if (event.target.closest(".home-date-nav")) return;
+        if (!event.target.closest(".today-metrics")) return;
+        if (event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        homeTouchStart = {
+          x: touch.clientX,
+          y: touch.clientY,
+          card: event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]")
+        };
+      }, { passive: true });
+      document.querySelector("#homeTodayCards").addEventListener("touchend", event => {
+        if (!homeTouchStart || getOpenSheetLayer()) {
+          homeTouchStart = null;
+          return;
+        }
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - homeTouchStart.x;
+        const dy = touch.clientY - homeTouchStart.y;
+        const tapCard = homeTouchStart.card;
+        homeTouchStart = null;
+        if (Math.abs(dx) >= 12 || Math.abs(dy) >= 12) return;
+        if (activateMetricCard(tapCard)) {
+          if (event.cancelable) event.preventDefault();
+          suppressSwipeClickUntil = Date.now() + 350;
+        }
+      }, { passive: false });
+      document.querySelector("#homeTodayCards").addEventListener("touchcancel", () => {
+        homeTouchStart = null;
+      }, { passive: true });
       const statsChartArea = document.querySelector("#statsChartArea");
       const resetStatsChartDragStyle = () => {
         statsChartArea.style.transition = "";
