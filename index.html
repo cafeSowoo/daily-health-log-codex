@@ -535,9 +535,45 @@
       gap: 10px;
       margin-top: 14px;
     }
+    .home-memo-actions .home-ai-feedback-btn { grid-column: 1 / -1; }
     .home-memo-actions .btn {
       width: 100%;
       justify-content: center;
+    }
+    .home-ai-feedback {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+    .home-ai-feedback-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .home-ai-feedback-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin: 0;
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .home-ai-feedback-model {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .home-ai-feedback-text {
+      margin: 0;
+      color: #57463c;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.55;
+      white-space: pre-line;
     }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
@@ -1375,6 +1411,7 @@
     const OWNER_EMAIL = CONFIG.ownerEmail || "harminis@gmail.com";
     const LOCAL_PREVIEW_BYPASS_AUTH = CONFIG.codexLocalPreviewBypassAuth === true;
     const CODEX_RECORDS_KEY = "codex_daily_health_records_v1";
+    const CODEX_FEEDBACKS_KEY = "codex_daily_health_feedbacks_v1";
     const CODEX_SETTINGS_KEY = "codex_daily_health_settings_v1";
     const SUPABASE_REQUEST_TIMEOUT_MS = 12000;
     const supabaseClient = CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && window.supabase
@@ -1401,7 +1438,8 @@
       selectedId: "",
       typeFilter: "all",
       storageMode: supabaseClient ? "supabase" : "local-preview",
-      remoteFailed: false
+      remoteFailed: false,
+      feedbackGeneratingDate: ""
     };
     const authState = { initialized: false, session: null, user: null };
     const chartState = { metric: "exercise", weekStart: startOfWeekIso(todayIso) };
@@ -1413,6 +1451,7 @@
     let suppressSwipeClickUntil = 0;
     let suppressSheetPopState = false;
     let activeSheetKind = "";
+    let feedbacks = [];
 
     function metricDisplayLabel(typeKey) {
       if (typeKey === "mood") return "마음";
@@ -1602,6 +1641,20 @@
       localStorage.setItem(CODEX_RECORDS_KEY, JSON.stringify(rows));
     }
 
+    function localFeedbacks() {
+      try {
+        const rows = JSON.parse(localStorage.getItem(CODEX_FEEDBACKS_KEY) || "[]");
+        return Array.isArray(rows) ? rows : [];
+      } catch (error) {
+        console.warn("codex local feedbacks could not be read.", error);
+        return [];
+      }
+    }
+
+    function saveLocalFeedbacks(rows) {
+      localStorage.setItem(CODEX_FEEDBACKS_KEY, JSON.stringify(rows));
+    }
+
     function loadSettings() {
       try {
         return JSON.parse(localStorage.getItem(CODEX_SETTINGS_KEY) || "{}") || {};
@@ -1626,6 +1679,20 @@
         date: row.record_date,
         type: row.record_type,
         payload: row.payload || {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        source: "supabase"
+      };
+    }
+
+    function fromSupabaseFeedback(row) {
+      return {
+        id: row.id,
+        userId: row.user_id,
+        date: row.feedback_date,
+        inputSnapshot: row.input_snapshot || {},
+        feedbackText: row.feedback_text || "",
+        model: row.model || "",
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         source: "supabase"
@@ -1710,6 +1777,7 @@
         syncAuthUI();
         window.setTimeout(async () => {
           await loadRecords();
+          await loadFeedbacks();
           renderAll();
         }, 0);
       });
@@ -1734,6 +1802,7 @@
         authState.session = null;
         authState.user = null;
         records = [];
+        feedbacks = [];
         syncAuthUI();
         renderAll();
         return;
@@ -1805,17 +1874,19 @@
       if (state.remoteFailed) return "Supabase 연결 실패 - localStorage fallback";
       if (!authState.user) return "Supabase 대기 중";
       if (!isOwnerSignedIn()) return "접근 차단";
-      return "Supabase codex_records";
+      return "Supabase codex_records + codex_daily_feedbacks";
     }
 
     async function loadRecords() {
       if (supabaseClient && !isOwnerSignedIn()) {
         if (LOCAL_PREVIEW_BYPASS_AUTH) {
           records = localRecords().sort(compareRecords);
+          feedbacks = localFeedbacks().sort(compareRecords);
           state.storageMode = "local-preview-bypass";
           return;
         }
         records = [];
+        feedbacks = [];
         state.storageMode = "supabase-locked";
         return;
       }
@@ -1843,8 +1914,36 @@
 
       if (canUseLocalFallback()) {
         records = localRecords().sort(compareRecords);
+        feedbacks = localFeedbacks().sort(compareRecords);
         state.storageMode = "local-preview";
       }
+    }
+
+    async function loadFeedbacks() {
+      if (supabaseClient && !isOwnerSignedIn()) {
+        feedbacks = LOCAL_PREVIEW_BYPASS_AUTH ? localFeedbacks().sort(compareRecords) : [];
+        return;
+      }
+
+      if (supabaseClient && isOwnerSignedIn() && !state.remoteFailed) {
+        try {
+          const { data, error } = await supabaseQuery(supabaseClient
+            .from("codex_daily_feedbacks")
+            .select("*")
+            .order("feedback_date", { ascending: false })
+            .order("created_at", { ascending: false }),
+            "Supabase 피드백 불러오기가 지연되고 있습니다."
+          );
+          if (error) throw error;
+          feedbacks = (data || []).map(fromSupabaseFeedback);
+          return;
+        } catch (error) {
+          console.warn("Supabase feedbacks could not be loaded.", error);
+          showToast("AI 피드백을 불러오지 못했습니다.");
+        }
+      }
+
+      feedbacks = canUseLocalFallback() ? localFeedbacks().sort(compareRecords) : [];
     }
 
     function compareRecords(a, b) {
@@ -2373,10 +2472,31 @@
       return String(recordForDateType(dateValue, "memo")?.payload?.memo || "").trim();
     }
 
+    function feedbackForDate(dateValue) {
+      return feedbacks
+        .filter(item => item.date === dateValue)
+        .sort(compareRecords)[0] || null;
+    }
+
+    function feedbackCardHTML(feedback) {
+      if (!feedback) return "";
+      return `
+        <div class="home-ai-feedback">
+          <div class="home-ai-feedback-head">
+            <h4 class="home-ai-feedback-title"><span class="material-symbols-outlined">auto_awesome</span>AI 피드백</h4>
+            <span class="home-ai-feedback-model">${escapeHTML(feedback.model || "gpt-5-nano")}</span>
+          </div>
+          <p class="home-ai-feedback-text">${escapeHTML(feedback.feedbackText)}</p>
+        </div>
+      `;
+    }
+
     function homeMemoCardHTML(dateValue) {
       const memoRows = memoRowsForDate(dateValue);
       const dayMemo = dayMemoText(dateValue);
       const memoCount = memoRows.length + (dayMemo ? 1 : 0);
+      const feedback = feedbackForDate(dateValue);
+      const feedbackLoading = state.feedbackGeneratingDate === dateValue;
       return `
         <article class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
           <div class="home-memo-head">
@@ -2397,7 +2517,11 @@
               </div>
             ` : ""}
           </div>
+          ${feedbackCardHTML(feedback)}
           <div class="home-memo-actions">
+            <button class="btn btn-ghost home-ai-feedback-btn" type="button" data-generate-feedback data-feedback-date="${escapeHTML(dateValue)}" data-force="${feedback ? "1" : "0"}" ${feedbackLoading ? "disabled" : ""}>
+              <span class="material-symbols-outlined">${feedbackLoading ? "hourglass_top" : "auto_awesome"}</span>${feedbackLoading ? "피드백 생성 중" : feedback ? "AI 피드백 다시 받기" : "AI 피드백 받기"}
+            </button>
             <button class="btn btn-ghost" type="button" data-open-day-memo>
               <span class="material-symbols-outlined">edit_note</span>오늘의 메모
             </button>
@@ -2703,6 +2827,44 @@
       }
       await copyTextToClipboard(text);
       showToast("오늘 하루 기록을 복사했습니다.");
+    }
+
+    function upsertFeedback(feedback) {
+      const index = feedbacks.findIndex(item => item.id === feedback.id || item.date === feedback.date);
+      if (index >= 0) feedbacks[index] = feedback;
+      else feedbacks.push(feedback);
+      feedbacks.sort(compareRecords);
+    }
+
+    async function generateDailyFeedback(dateValue, { force = false } = {}) {
+      if (!supabaseClient || canUseLocalFallback()) throw new Error("Supabase 로그인 상태에서 사용할 수 있습니다.");
+      if (!isOwnerSignedIn()) throw new Error(`${OWNER_EMAIL} 계정으로 로그인해야 AI 피드백을 받을 수 있습니다.`);
+      if (force && !confirm("기존 AI 피드백을 다시 생성할까요?")) return;
+
+      state.feedbackGeneratingDate = dateValue;
+      renderHomeMemoCard();
+      try {
+        showToast("AI 피드백을 생성 중입니다...");
+        const { data, error } = await withTimeout(
+          supabaseClient.functions.invoke("generate-daily-feedback", {
+            body: { date: dateValue, force }
+          }),
+          "AI 피드백 생성 응답이 지연되고 있습니다.",
+          45000
+        );
+        if (error) {
+          const detail = await error.context?.json?.().catch(() => null);
+          throw new Error(detail?.error || error.message || "AI 피드백을 만들지 못했습니다.");
+        }
+        if (data?.error) throw new Error(data.error);
+        if (!data?.feedback) throw new Error("AI 피드백 응답이 비어 있습니다.");
+        upsertFeedback(fromSupabaseFeedback(data.feedback));
+        renderHomeMemoCard();
+        showToast(data.reused ? "저장된 AI 피드백을 불러왔습니다." : "AI 피드백을 저장했습니다.");
+      } finally {
+        state.feedbackGeneratingDate = "";
+        renderHomeMemoCard();
+      }
     }
 
     const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -3725,6 +3887,13 @@
         openScoreSheet(state.homeDate);
         return;
       }
+      const feedbackButton = event.target.closest("[data-generate-feedback]") || closestFromPoint("[data-generate-feedback]", event.clientX, event.clientY);
+      if (feedbackButton) {
+        const force = feedbackButton.dataset.force === "1";
+        const dateValue = feedbackButton.dataset.feedbackDate || state.homeDate;
+        generateDailyFeedback(dateValue, { force }).catch(error => showToast(error.message || "AI 피드백을 만들지 못했습니다."));
+        return;
+      }
       if (event.target.closest("[data-copy-day-log]") || closestFromPoint("[data-copy-day-log]", event.clientX, event.clientY)) {
         copyDayLog(state.homeDate).catch(error => showToast(error.message || "복사하지 못했습니다."));
         return;
@@ -4210,6 +4379,7 @@
       bindEvents();
       await initAuth();
       await loadRecords();
+      await loadFeedbacks();
       renderAll();
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
         let refreshing = false;
