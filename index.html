@@ -908,6 +908,11 @@
       outline: 2px solid rgba(155, 106, 74, 0.34);
       outline-offset: 2px;
     }
+    .exercise-other-field {
+      display: none;
+      margin-top: 8px;
+    }
+    .exercise-other-field.visible { display: grid; }
     .input, .select, .textarea {
       width: 100%;
       border: 1px solid var(--line);
@@ -1282,7 +1287,7 @@
             <p class="section-meta">미리보기용 로컬 데이터는 `codex_` key에만 저장됩니다.</p>
             <div class="record-list" style="margin-top:16px;">
               <label class="label">기본 운동 종류
-                <input class="input" id="defaultExerciseType" placeholder="예: 걷기, 헬스, 테니스">
+                <input class="input" id="defaultExerciseType" placeholder="예: 헬스, 테니스">
               </label>
               <label class="label">기본 운동 강도
                 <select class="select" id="defaultExerciseIntensity">
@@ -1542,6 +1547,10 @@
       return stack
         .map(element => element.closest?.(selector))
         .find(target => target && root.contains(target)) || null;
+    }
+
+    function getOpenSheetLayer() {
+      return document.querySelector(".sheet.open");
     }
 
     function daysInMonth(monthValue) {
@@ -1950,7 +1959,9 @@
     }
 
     function exerciseEmoji(value) {
-      return { "테니스": "🎾", "자전거": "🚴", "걷기": "🚶", "런닝": "🏃", "기타": "💪" }[value] || "🏋️";
+      const text = Array.isArray(value) ? value.join(" ") : String(value || "");
+      const match = ["테니스", "자전거", "걷기", "런닝", "기타"].find(item => text.includes(item));
+      return { "테니스": "🎾", "자전거": "🚴", "걷기": "🚶", "런닝": "🏃", "기타": "💪" }[match] || "🏋️";
     }
 
     function hasAlcohol(payload = {}) {
@@ -1978,6 +1989,11 @@
       return { "테니스": "🎾 테니스", "자전거": "🚴 자전거", "걷기": "🚶 걷기", "런닝": "🏃 런닝", "기타": "💪 기타" }[value] || value || "";
     }
 
+    function isNoExercisePayload(payload = {}) {
+      return Boolean(payload.noExercise) ||
+        (!payload.exerciseType && !Number(payload.durationMinutes || 0) && !payload.intensity);
+    }
+
     function exerciseIntensityToneLevel(value) {
       return { "낮음": 1, "보통": 3, "높음": 5 }[value] || 0;
     }
@@ -1985,18 +2001,15 @@
     function scoreExercise(record) {
       if (!record) return 0;
       const p = record.payload || {};
+      if (isNoExercisePayload(p)) return 5;
       const minutes = Number(p.durationMinutes || 0);
       if (minutes <= 0) return 0;
-      if (p.intensity === "낮음") {
-        if (minutes < 20) return 5;
-        if (minutes < 30) return 10;
-        if (minutes < 40) return 15;
-        return p.exerciseType ? 20 : 15;
-      }
-      if (minutes < 10) return 5;
+      if (minutes < 10) return 7;
       if (minutes < 20) return 10;
-      if (minutes < 30) return 15;
-      return p.exerciseType && ["보통", "높음"].includes(p.intensity) ? 20 : 15;
+      if (minutes < 30) return 14;
+      if (!p.intensity) return 16;
+      if (p.intensity === "낮음") return 17;
+      return ["보통", "높음"].includes(p.intensity) ? 20 : 16;
     }
 
     function scoreMeal(record) {
@@ -2004,22 +2017,25 @@
       const lunch = record.payload?.lunchAmount || "";
       const dinner = record.payload?.dinnerAmount || "";
       const scores = {
-        "normal|small": 20,
+        "small|small": 20,
         "small|normal": 18,
-        "normal|normal": 17,
-        "small|small": 14,
-        "normal|overeaten": 10,
-        "overeaten|small": 9,
+        "normal|small": 17,
+        "normal|normal": 14,
+        "overeaten|small": 10,
         "small|overeaten": 8,
-        "overeaten|normal": 7,
+        "normal|overeaten": 7,
+        "overeaten|normal": 5,
         "overeaten|overeaten": 3
       };
-      return scores[`${lunch}|${dinner}`] || 0;
+      if (scores[`${lunch}|${dinner}`] !== undefined) return scores[`${lunch}|${dinner}`];
+      if (lunch && !dinner) return { small: 10, normal: 7, overeaten: 3 }[lunch] || 0;
+      if (!lunch && dinner) return { small: 10, normal: 7, overeaten: 3 }[dinner] || 0;
+      return 0;
     }
 
     function scoreAlcohol(record) {
       if (!record) return 0;
-      return { none: 20, moderate: 10, heavy: 0 }[alcoholLevel(record.payload)] ?? 0;
+      return { none: 20, moderate: 10, heavy: 3 }[alcoholLevel(record.payload)] ?? 0;
     }
 
     function scoreMoodValue(value) {
@@ -2033,12 +2049,17 @@
 
     function scoreReading(record) {
       if (!record) return 0;
+      if (isNoReadingPayload(record.payload)) return 5;
       const pages = Number(record.payload?.todayPages || 0);
       if (pages >= 30) return 20;
       if (pages >= 20) return 15;
       if (pages >= 10) return 10;
-      if (pages >= 1) return 5;
+      if (pages >= 1) return 7;
       return 0;
+    }
+
+    function isNoReadingPayload(payload = {}) {
+      return Boolean(payload.noReading) || payload.todayPages === 0 || payload.todayPages === "0";
     }
 
     function dailyScoreForDate(dateValue) {
@@ -2081,6 +2102,7 @@
     function exerciseScoreReason(record) {
       if (!record) return "운동 기록 없음";
       const p = record.payload || {};
+      if (isNoExercisePayload(p)) return "🚫 운동안함";
       const minutes = Number(p.durationMinutes || 0);
       const type = compactExerciseType(p.exerciseType);
       const intensity = p.intensity || "강도 미입력";
@@ -2120,6 +2142,7 @@
     function readingScoreReason(record) {
       if (!record) return "독서 기록 없음";
       const pages = Number(record.payload?.todayPages || 0);
+      if (isNoReadingPayload(record.payload)) return "📚 독서안함";
       if (!pages) return "읽은 페이지 미입력";
       return pages >= 30 ? `${pages}페이지, 목표 달성` : `${pages}페이지 읽음`;
     }
@@ -2160,6 +2183,7 @@
     function summaryText(record) {
       const p = record.payload || {};
       if (record.type === "exercise") {
+        if (isNoExercisePayload(p)) return [p.memo || "🚫 운동안함"].filter(Boolean).join(" · ");
         return [`${p.exerciseType || "운동"}`, p.durationMinutes ? `${p.durationMinutes}분` : "", p.intensity || "", p.memo || ""].filter(Boolean).join(" · ");
       }
       if (record.type === "meal") {
@@ -2181,6 +2205,7 @@
       }
       if (record.type === "weight") return [p.weightKg ? `${p.weightKg}kg` : "무게", p.memo || ""].filter(Boolean).join(" · ");
       if (record.type === "reading") {
+        if (isNoReadingPayload(p)) return ["📚 독서안함", p.memo || ""].filter(Boolean).join(" · ");
         return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
       }
       return "";
@@ -2218,6 +2243,7 @@
       if (!record) return { text: "입력 전", empty: true };
       const p = record.payload || {};
       if (type === "exercise") {
+        if (isNoExercisePayload(p)) return { text: "🚫 운동안함", empty: false };
         const fragments = [
           p.exerciseType ? { kind: "text", text: exerciseTypeLabel(p.exerciseType) } : null,
           p.durationMinutes ? { kind: "text", text: `${p.durationMinutes}분` } : null,
@@ -2250,6 +2276,7 @@
         return { text: p.weightKg ? `⚖️ ${p.weightKg}kg` : "무게 기록 있음", empty: false };
       }
       if (type === "reading") {
+        if (isNoReadingPayload(p)) return { text: "📚 독서안함", empty: false };
         const fragments = [
           p.todayPages ? { kind: "text", text: `🔖 ${p.todayPages}p` } : null,
           p.todayMinutes ? { kind: "text", text: `⏱️ ${p.todayMinutes}분` } : null
@@ -2612,12 +2639,18 @@
 
     function detailFields(record) {
       const p = record.payload || {};
-      if (record.type === "exercise") return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType], ["메모", p.memo]];
+      if (record.type === "exercise") {
+        if (isNoExercisePayload(p)) return [["상태", "🚫 운동안함"], ["메모", p.memo]];
+        return [["운동시간", p.durationMinutes ? `${p.durationMinutes}분` : ""], ["강도", p.intensity], ["운동 종류", p.exerciseType], ["메모", p.memo]];
+      }
       if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
       if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["메모", p.memo]];
       if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
       if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
-      if (record.type === "reading") return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
+      if (record.type === "reading") {
+        if (isNoReadingPayload(p)) return [["상태", "📚 독서안함"], ["메모", p.memo]];
+        return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
+      }
       if (record.type === "memo") return [["메모", p.memo]];
       return [];
     }
@@ -2690,6 +2723,7 @@
         ],
         points(iso) {
           const record = recordForDateType(iso, "exercise");
+          if (isNoExercisePayload(record?.payload)) return [];
           const minutes = Number(record?.payload?.durationMinutes || 0);
           if (!record || !minutes) return [];
           const intensity = record.payload?.intensity || "";
@@ -3421,12 +3455,12 @@
       const type = document.querySelector("#recordType").value;
       const settings = loadSettings();
       const value = key => escapeHTML(values[key] ?? "");
-      const exerciseType = value("exerciseType") || escapeHTML(settings.defaultExerciseType || "");
+      const exerciseSelection = normalizeExerciseTypeSelection(values.exerciseTypes || values.exerciseType || settings.defaultExerciseType || "");
       const intensity = value("intensity") || escapeHTML(settings.defaultExerciseIntensity || "");
       const drinkLevel = value("drinkLevel") || (value("didDrink") === "yes" ? "moderate" : "none");
       const fields = {
         exercise: `
-          ${choiceField("운동 종류", "exerciseType", [["테니스", "테니스"], ["자전거", "자전거"], ["걷기", "걷기"], ["런닝", "런닝"], ["기타", "기타"]], exerciseType, { full: true })}
+          ${exerciseTypeField(exerciseSelection)}
           ${inputField("운동시간", "durationMinutes", "number", value("durationMinutes"), "분")}
           ${selectField("강도", "intensity", ["", "낮음", "보통", "높음"], intensity)}
           ${textareaField("메모", "memo", value("memo"))}
@@ -3460,6 +3494,52 @@
         `
       };
       document.querySelector("#dynamicFields").innerHTML = fields[type] || "";
+      syncExerciseOtherInput();
+    }
+
+    function normalizeExerciseTypeSelection(value) {
+      const known = ["테니스", "자전거", "런닝"];
+      const raw = Array.isArray(value)
+        ? value
+        : String(value || "").split(/\s*[·,]\s*|\s+\/\s+/);
+      const selected = [];
+      let other = "";
+      raw.map(item => String(item || "").trim()).filter(Boolean).forEach(item => {
+        if (known.includes(item)) selected.push(item);
+        else if (item !== "기타") other = item;
+      });
+      if (other) selected.push("기타");
+      return { selected: Array.from(new Set(selected)), other };
+    }
+
+    function exerciseTypeField(selection) {
+      const options = [["테니스", "테니스"], ["자전거", "자전거"], ["런닝", "런닝"], ["기타", "기타"]];
+      const selected = new Set(selection.selected || []);
+      return `
+        <div class="choice-field full" data-exercise-type-field>
+          <span>운동 종류</span>
+          <div class="choice-row" style="--choice-count:${options.length}">
+            ${options.map(([value, text]) => `
+              <label>
+                <input type="checkbox" name="exerciseTypes" value="${escapeHTML(value)}" ${selected.has(value) ? "checked" : ""}>
+                <span>${escapeHTML(text)}</span>
+              </label>
+            `).join("")}
+          </div>
+          <label class="label full exercise-other-field">
+            기타 직접 입력
+            <input class="input" name="exerciseTypeOther" value="${escapeHTML(selection.other || "")}" placeholder="운동 종류 입력">
+          </label>
+        </div>
+      `;
+    }
+
+    function syncExerciseOtherInput() {
+      const field = document.querySelector("[data-exercise-type-field]");
+      if (!field) return;
+      const otherChecked = Boolean(field.querySelector('input[name="exerciseTypes"][value="기타"]:checked'));
+      const otherField = field.querySelector(".exercise-other-field");
+      if (otherField) otherField.classList.toggle("visible", otherChecked);
     }
 
     function inputField(label, name, type, value, placeholder, step = "1") {
@@ -3497,7 +3577,18 @@
         const value = Number(get(key));
         return Number.isFinite(value) && get(key) !== "" ? value : "";
       };
-      if (type === "exercise") return { durationMinutes: number("durationMinutes"), intensity: get("intensity"), exerciseType: get("exerciseType"), memo: get("memo") };
+      if (type === "exercise") {
+        const selectedTypes = formData.getAll("exerciseTypes").map(value => String(value || "").trim()).filter(Boolean);
+        const otherType = get("exerciseTypeOther");
+        const exerciseTypes = selectedTypes
+          .filter(value => value !== "기타")
+          .concat(selectedTypes.includes("기타") && otherType ? [otherType] : selectedTypes.includes("기타") ? ["기타"] : []);
+        const durationMinutes = number("durationMinutes");
+        const intensity = get("intensity");
+        const exerciseType = exerciseTypes.join(" · ");
+        const noExercise = !exerciseType && !durationMinutes && !intensity;
+        return { durationMinutes, intensity, exerciseTypes, exerciseType, noExercise, memo: get("memo") };
+      }
       if (type === "meal") return { lunchAmount: get("lunchAmount"), dinnerAmount: get("dinnerAmount"), memo: get("memo") };
       if (type === "alcohol") {
         const drinkLevel = get("drinkLevel") || "none";
@@ -3505,7 +3596,10 @@
       }
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
       if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
-      if (type === "reading") return { todayPages: number("todayPages"), todayMinutes: number("todayMinutes"), memo: get("memo") };
+      if (type === "reading") {
+        const todayPages = number("todayPages");
+        return { todayPages, todayMinutes: number("todayMinutes"), noReading: todayPages === 0, memo: get("memo") };
+      }
       if (type === "memo") return { memo: get("memo") };
       return {};
     }
@@ -3567,6 +3661,19 @@
     function handleDocumentClick(event) {
       if (Date.now() < suppressSwipeClickUntil && event.target.closest("#homeTodayCards, #selectedDatePanel")) {
         event.preventDefault();
+        return;
+      }
+
+      const openSheetLayer = getOpenSheetLayer();
+      if (openSheetLayer) {
+        if (event.target.closest("[data-close-sheet]")) {
+          closeSheet();
+          return;
+        }
+        if (event.target.closest("[data-close-score-sheet]")) {
+          closeScoreSheet();
+          return;
+        }
         return;
       }
 
@@ -3647,14 +3754,6 @@
       }
       if (event.target.closest("[data-profile-button]")) {
         switchView("profile");
-        return;
-      }
-      if (event.target.closest("[data-close-sheet]")) {
-        closeSheet();
-        return;
-      }
-      if (event.target.closest("[data-close-score-sheet]")) {
-        closeScoreSheet();
         return;
       }
       if (event.target.closest("[data-detail-back]")) {
@@ -3738,6 +3837,9 @@
       document.querySelector("#recordType").addEventListener("change", () => {
         renderSheetTypeBadge();
         renderDynamicFields();
+      });
+      document.querySelector("#dynamicFields").addEventListener("change", event => {
+        if (event.target.matches('input[name="exerciseTypes"]')) syncExerciseOtherInput();
       });
       document.querySelector("#recordForm").addEventListener("submit", handleRecordSubmit);
       document.querySelector("#recordTypeFilter").addEventListener("change", event => {
