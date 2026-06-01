@@ -257,6 +257,9 @@
       display: grid;
       gap: 0;
       touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
     .today-metrics .metric-card {
       border-radius: 12px;
@@ -327,6 +330,14 @@
       color: inherit;
       cursor: pointer;
       text-align: left;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .metric-card * {
+      user-select: none;
+      -webkit-user-select: none;
     }
     .metric-card.has-record { grid-template-columns: 34px minmax(0, 1fr); }
     .metric-card .metric-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--primary-soft); color: var(--primary-dark); }
@@ -583,6 +594,29 @@
     .home-ai-feedback-actions .btn {
       width: 100%;
       justify-content: center;
+    }
+    .home-ai-model-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .home-ai-model-select {
+      min-width: 0;
+      height: 41px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.74);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .home-ai-model-row .btn {
+      min-width: 108px;
+      justify-content: center;
+      white-space: nowrap;
     }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
@@ -1423,6 +1457,12 @@
     const CODEX_FEEDBACKS_KEY = "codex_daily_health_feedbacks_v1";
     const CODEX_SETTINGS_KEY = "codex_daily_health_settings_v1";
     const SUPABASE_REQUEST_TIMEOUT_MS = 12000;
+    const AI_FEEDBACK_MODELS = [
+      { id: "gpt-5-nano", label: "GPT-5 Nano", provider: "OpenAI" },
+      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Gemini" },
+      { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", provider: "Gemini" }
+    ];
+    const DEFAULT_AI_FEEDBACK_MODEL = AI_FEEDBACK_MODELS[0].id;
     const supabaseClient = CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && window.supabase
       ? window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey)
       : null;
@@ -1673,12 +1713,30 @@
     }
 
     function saveSettings() {
+      const existing = loadSettings();
       const settings = {
+        ...existing,
         defaultExerciseType: document.querySelector("#defaultExerciseType").value.trim(),
         defaultExerciseIntensity: document.querySelector("#defaultExerciseIntensity").value
       };
       localStorage.setItem(CODEX_SETTINGS_KEY, JSON.stringify(settings));
       showToast("설정을 저장했습니다.");
+    }
+
+    function selectedAiFeedbackModel() {
+      const value = loadSettings().aiFeedbackModel;
+      return AI_FEEDBACK_MODELS.some(model => model.id === value) ? value : DEFAULT_AI_FEEDBACK_MODEL;
+    }
+
+    function aiFeedbackModelLabel(modelId) {
+      const model = AI_FEEDBACK_MODELS.find(item => item.id === modelId);
+      return model ? model.label : modelId || DEFAULT_AI_FEEDBACK_MODEL;
+    }
+
+    function saveAiFeedbackModel(modelId) {
+      const settings = loadSettings();
+      settings.aiFeedbackModel = AI_FEEDBACK_MODELS.some(model => model.id === modelId) ? modelId : DEFAULT_AI_FEEDBACK_MODEL;
+      localStorage.setItem(CODEX_SETTINGS_KEY, JSON.stringify(settings));
     }
 
     function fromSupabase(row) {
@@ -2489,13 +2547,15 @@
 
     function feedbackCardHTML(feedback) {
       if (!feedback) return "";
+      const activeModel = selectedAiFeedbackModel();
       return `
         <div class="home-ai-feedback">
           <div class="home-ai-feedback-head">
             <h4 class="home-ai-feedback-title"><span class="material-symbols-outlined">auto_awesome</span>AI 피드백</h4>
-            <span class="home-ai-feedback-model">${escapeHTML(feedback.model || "gpt-5-nano")}</span>
+            <span class="home-ai-feedback-model">${escapeHTML(aiFeedbackModelLabel(feedback.model || "gpt-5-nano"))}</span>
           </div>
           <p class="home-ai-feedback-text">${escapeHTML(feedback.feedbackText)}</p>
+          ${aiFeedbackModelPickerHTML(activeModel)}
           <div class="home-ai-feedback-actions">
             <button class="btn btn-ghost" type="button" data-delete-feedback data-feedback-date="${escapeHTML(feedback.date)}">
               <span class="material-symbols-outlined">delete</span>AI 피드백 삭제
@@ -2504,6 +2564,21 @@
               <span class="material-symbols-outlined">auto_awesome</span>AI 피드백 다시 받기
             </button>
           </div>
+        </div>
+      `;
+    }
+
+    function aiFeedbackModelPickerHTML(activeModel = selectedAiFeedbackModel()) {
+      return `
+        <div class="home-ai-model-row">
+          <select class="home-ai-model-select" data-ai-model-select aria-label="AI 피드백 모델 선택">
+            ${AI_FEEDBACK_MODELS.map(model => `
+              <option value="${escapeHTML(model.id)}" ${model.id === activeModel ? "selected" : ""}>${escapeHTML(model.label)}</option>
+            `).join("")}
+          </select>
+          <button class="btn btn-ghost" type="button" data-ai-model-add>
+            <span class="material-symbols-outlined">add</span>모델 추가
+          </button>
         </div>
       `;
     }
@@ -2535,6 +2610,7 @@
             ` : ""}
           </div>
           ${feedbackCardHTML(feedback)}
+          ${feedback ? "" : aiFeedbackModelPickerHTML()}
           <div class="home-memo-actions">
             ${feedback ? "" : `
               <button class="btn btn-ghost home-ai-feedback-btn" type="button" data-generate-feedback data-feedback-date="${escapeHTML(dateValue)}" data-force="0" ${feedbackLoading ? "disabled" : ""}>
@@ -2887,7 +2963,7 @@
         showToast("AI 피드백을 생성 중입니다...");
         const { data, error } = await withTimeout(
           supabaseClient.functions.invoke("generate-daily-feedback", {
-            body: { date: dateValue, force }
+            body: { date: dateValue, force, model: selectedAiFeedbackModel() }
           }),
           "AI 피드백 생성 응답이 지연되고 있습니다.",
           45000
@@ -3927,6 +4003,15 @@
         openScoreSheet(state.homeDate);
         return;
       }
+      const modelAddButton = event.target.closest("[data-ai-model-add]") || closestFromPoint("[data-ai-model-add]", event.clientX, event.clientY);
+      if (modelAddButton) {
+        const select = modelAddButton.closest(".home-ai-model-row")?.querySelector("[data-ai-model-select]");
+        const modelId = select?.value || selectedAiFeedbackModel();
+        saveAiFeedbackModel(modelId);
+        showToast(`${aiFeedbackModelLabel(modelId)} 모델을 사용할게요.`);
+        renderHomeMemoCard();
+        return;
+      }
       const deleteFeedbackButton = event.target.closest("[data-delete-feedback]") || closestFromPoint("[data-delete-feedback]", event.clientX, event.clientY);
       if (deleteFeedbackButton) {
         const dateValue = deleteFeedbackButton.dataset.feedbackDate || state.homeDate;
@@ -4038,6 +4123,12 @@
       const selectedDatePanel = document.querySelector("#selectedDatePanel");
 
       document.addEventListener("click", handleDocumentClick);
+      document.addEventListener("change", event => {
+        const select = event.target.closest("[data-ai-model-select]");
+        if (!select) return;
+        saveAiFeedbackModel(select.value);
+        showToast(`${aiFeedbackModelLabel(select.value)} 모델을 선택했습니다.`);
+      });
       document.addEventListener("keydown", event => {
         const metricCard = event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]");
         if (!metricCard || !["Enter", " "].includes(event.key)) return;

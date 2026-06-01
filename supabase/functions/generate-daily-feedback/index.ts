@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const MODEL = "gpt-5-nano";
+const DEFAULT_MODEL = "gpt-5-nano";
 const OWNER_EMAIL = (Deno.env.get("OWNER_EMAIL") || "harminis@gmail.com").toLowerCase();
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +13,17 @@ type CodexRecord = {
   payload: Record<string, unknown>;
 };
 
+type AiModelConfig = {
+  id: string;
+  provider: "openai" | "gemini";
+};
+
+const AI_MODELS: AiModelConfig[] = [
+  { id: "gpt-5-nano", provider: "openai" },
+  { id: "gemini-2.5-flash", provider: "gemini" },
+  { id: "gemini-2.5-flash-lite", provider: "gemini" }
+];
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -22,6 +33,11 @@ function jsonResponse(body: unknown, status = 200) {
 
 function compactText(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function modelConfig(modelId: unknown) {
+  const id = compactText(modelId) || DEFAULT_MODEL;
+  return AI_MODELS.find((model) => model.id === id) || AI_MODELS[0];
 }
 
 function mealLabel(value: unknown) {
@@ -72,13 +88,96 @@ function extractOutputText(data: Record<string, unknown>) {
   }).filter(Boolean).join("\n").trim();
 }
 
+function extractGeminiText(data: Record<string, unknown>) {
+  const candidates = Array.isArray(data.candidates) ? data.candidates as Record<string, unknown>[] : [];
+  return candidates.flatMap((candidate) => {
+    const content = candidate.content as Record<string, unknown> | undefined;
+    const parts = Array.isArray(content?.parts) ? content.parts as Record<string, unknown>[] : [];
+    return parts.map((part) => compactText(part.text));
+  }).filter(Boolean).join("\n").trim();
+}
+
+function instructionsText() {
+  return [
+    "너는 다이어트와 생활 기록을 돕는 다정한 코치다.",
+    "비난하지 말고 현실적으로 말한다.",
+    "항상 자연스러운 존댓말로 말한다.",
+    "의학적 진단, 처방, 확정적 건강 조언은 하지 않는다.",
+    "출력은 4개 짧은 문단으로만 구성한다: 오늘 잘한 점, 아쉬운 점, 내일의 작은 행동, 한 줄 응원.",
+    "각 문단은 한두 문장으로 제한한다."
+  ].join("\n");
+}
+
+async function generateOpenAiFeedback(apiKey: string, model: string, prompt: string) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      instructions: instructionsText(),
+      input: prompt,
+      reasoning: { effort: "minimal" },
+      text: { verbosity: "low" },
+      max_output_tokens: 1200
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error("OpenAI response error", data);
+    const detail = compactText((data as { error?: { message?: string } }).error?.message);
+    throw new Error(detail || "AI 피드백 생성에 실패했습니다.");
+  }
+
+  const text = extractOutputText(data);
+  if (!text) {
+    const status = compactText((data as Record<string, unknown>).status);
+    const reason = compactText((data as { incomplete_details?: { reason?: string } }).incomplete_details?.reason);
+    throw new Error(reason ? `AI 피드백 내용이 비어 있습니다. (${reason})` : status ? `AI 피드백 내용이 비어 있습니다. (${status})` : "AI 피드백 내용이 비어 있습니다.");
+  }
+  return text;
+}
+
+async function generateGeminiFeedback(apiKey: string, model: string, prompt: string) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: instructionsText() }] },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1200,
+          thinkingConfig: { thinkingBudget: 0 }
+        }
+      })
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error("Gemini response error", data);
+    const detail = compactText((data as { error?: { message?: string } }).error?.message);
+    throw new Error(detail || `Gemini 피드백 생성에 실패했습니다. (${response.status})`);
+  }
+
+  const text = extractGeminiText(data);
+  if (!text) throw new Error("Gemini 피드백 내용이 비어 있습니다.");
+  return text;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) return jsonResponse({ error: "OPENAI_API_KEY is not configured" }, 500);
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -91,6 +190,9 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const date = compactText(body.date);
     const force = Boolean(body.force);
+    const selectedModel = modelConfig(body.model);
+    if (selectedModel.provider === "openai" && !openaiApiKey) return jsonResponse({ error: "OPENAI_API_KEY is not configured" }, 500);
+    if (selectedModel.provider === "gemini" && !geminiApiKey) return jsonResponse({ error: "GEMINI_API_KEY is not configured. Supabase Function Secret에 Gemini API 키를 추가해야 합니다." }, 500);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return jsonResponse({ error: "날짜 형식이 올바르지 않습니다." }, 400);
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
@@ -122,6 +224,8 @@ Deno.serve(async (req: Request) => {
 
     const snapshot = {
       date,
+      model: selectedModel.id,
+      provider: selectedModel.provider,
       records: records || [],
       summaries: lines
     };
@@ -133,42 +237,9 @@ Deno.serve(async (req: Request) => {
       "이 기록을 바탕으로 사용자가 내일 다시 기록하고 싶어지게 한국어로 짧게 피드백해 주세요."
     ].join("\n");
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        instructions: [
-          "너는 다이어트와 생활 기록을 돕는 다정한 코치다.",
-          "비난하지 말고 현실적으로 말한다.",
-          "항상 자연스러운 존댓말로 말한다.",
-          "의학적 진단, 처방, 확정적 건강 조언은 하지 않는다.",
-          "출력은 4개 짧은 문단으로만 구성한다: 오늘 잘한 점, 아쉬운 점, 내일의 작은 행동, 한 줄 응원.",
-          "각 문단은 한두 문장으로 제한한다."
-        ].join("\n"),
-        input: prompt,
-        reasoning: { effort: "minimal" },
-        text: { verbosity: "low" },
-        max_output_tokens: 1200
-      })
-    });
-
-    const openaiData = await openaiResponse.json().catch(() => ({}));
-    if (!openaiResponse.ok) {
-      console.error("OpenAI response error", openaiData);
-      const detail = compactText((openaiData as { error?: { message?: string } }).error?.message);
-      return jsonResponse({ error: detail || "AI 피드백 생성에 실패했습니다." }, 502);
-    }
-
-    const feedbackText = extractOutputText(openaiData);
-    if (!feedbackText) {
-      const status = compactText(openaiData.status);
-      const reason = compactText((openaiData as { incomplete_details?: { reason?: string } }).incomplete_details?.reason);
-      return jsonResponse({ error: reason ? `AI 피드백 내용이 비어 있습니다. (${reason})` : status ? `AI 피드백 내용이 비어 있습니다. (${status})` : "AI 피드백 내용이 비어 있습니다." }, 502);
-    }
+    const feedbackText = selectedModel.provider === "gemini"
+      ? await generateGeminiFeedback(geminiApiKey || "", selectedModel.id, prompt)
+      : await generateOpenAiFeedback(openaiApiKey || "", selectedModel.id, prompt);
 
     const { data: feedback, error: upsertError } = await supabaseAdmin
       .from("codex_daily_feedbacks")
@@ -177,7 +248,7 @@ Deno.serve(async (req: Request) => {
         feedback_date: date,
         input_snapshot: snapshot,
         feedback_text: feedbackText,
-        model: MODEL
+        model: selectedModel.id
       }, { onConflict: "user_id,feedback_date" })
       .select("*")
       .single();
