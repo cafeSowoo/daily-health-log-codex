@@ -20,6 +20,7 @@ type AiModelConfig = {
 
 const AI_MODELS: AiModelConfig[] = [
   { id: "gpt-5-nano", provider: "openai" },
+  { id: "gemini-3-flash-preview", provider: "gemini" },
   { id: "gemini-2.5-flash", provider: "gemini" },
   { id: "gemini-2.5-flash-lite", provider: "gemini" }
 ];
