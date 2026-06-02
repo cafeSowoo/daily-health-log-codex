@@ -316,6 +316,7 @@
       .hl-exit-left, .hl-exit-right, .hl-enter-right, .hl-enter-left { animation: none; }
       body.selected-date-active #calendar.active #selectedDatePanel { animation: none; }
       .sheet.open .sheet-panel { opacity: 1; }
+      .home-journal-tabs::before { transition: none; }
       .metric-card,
       #recordSheet .choice-row label span,
       #recordSheet .sheet-actions .btn,
@@ -572,17 +573,39 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 6px;
+      position: relative;
       margin-bottom: 16px;
       padding: 4px;
       border: 1px solid var(--line);
       border-radius: 14px;
       background: rgba(246, 237, 229, 0.62);
+      overflow: hidden;
+    }
+    .home-journal-tabs::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      width: calc((100% - 14px) / 2);
+      border-radius: 11px;
+      background: #fffaf6;
+      box-shadow: 0 8px 20px rgba(77, 54, 37, 0.08);
+      transform: translateX(0);
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+      pointer-events: none;
+    }
+    .home-journal-card[data-active-tab="ai"] .home-journal-tabs::before {
+      transform: translateX(calc(100% + 6px));
     }
     .home-journal-tab {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 5px;
+      position: relative;
+      z-index: 1;
       min-width: 0;
       min-height: 38px;
       padding: 0 10px;
@@ -597,11 +620,10 @@
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      transition: color 0.18s ease;
     }
     .home-journal-tab.is-active {
-      background: #fffaf6;
       color: var(--primary-dark);
-      box-shadow: 0 8px 20px rgba(77, 54, 37, 0.08);
     }
     .home-journal-tab .material-symbols-outlined { font-size: 18px; }
     .home-journal-panel { display: grid; gap: 0; }
@@ -2721,12 +2743,67 @@
       `;
     }
 
-    function homeMemoCardHTML(dateValue) {
+    function homeMemoPanelHTML(dateValue) {
       const memoRows = memoRowsForDate(dateValue);
       const dayMemo = dayMemoText(dateValue);
+      return `
+        <section class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
+          <div class="home-memo-list">
+            ${memoRows.length || dayMemo ? memoRows.map(row => `
+              <div class="home-memo-item">
+                <strong class="home-memo-label">${escapeHTML(metricDisplayLabel(row.typeKey))}</strong>
+                <p class="home-memo-text">${escapeHTML(row.memo)}</p>
+              </div>
+            `).join("") : `<p class="home-memo-empty">아직 메모가 없습니다.</p>`}
+            ${dayMemo ? `
+              <div class="home-memo-item">
+                <strong class="home-memo-label">메모</strong>
+                <p class="home-memo-text">${escapeHTML(dayMemo)}</p>
+              </div>
+            ` : ""}
+          </div>
+          <div class="home-memo-actions">
+            <button class="btn btn-ghost" type="button" data-open-day-memo>
+              <span class="material-symbols-outlined">edit_note</span>오늘의 메모
+            </button>
+            <button class="btn btn-ghost home-copy-day-btn" type="button" data-copy-day-log>
+              <span class="material-symbols-outlined">content_copy</span>오늘하루 복사하기
+            </button>
+          </div>
+        </section>
+      `;
+    }
+
+    function homeJournalPanelHTML(dateValue, tab = state.homeJournalTab === "ai" ? "ai" : "memo") {
+      return tab === "ai" ? homeAiFeedbackCardHTML(dateValue) : homeMemoPanelHTML(dateValue);
+    }
+
+    function setHomeJournalTab(tab) {
+      const nextTab = tab === "ai" ? "ai" : "memo";
+      if (state.homeJournalTab === nextTab) return;
+
+      state.homeJournalTab = nextTab;
+      const card = document.querySelector("#homeMemoCard .home-journal-card");
+      if (!card) {
+        renderHomeMemoCard();
+        return;
+      }
+
+      card.dataset.activeTab = nextTab;
+      card.querySelectorAll("[data-home-journal-tab]").forEach(button => {
+        const isActive = button.dataset.homeJournalTab === nextTab;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+
+      const panel = card.querySelector(".home-journal-panel");
+      if (panel) panel.innerHTML = homeJournalPanelHTML(state.homeDate, nextTab);
+    }
+
+    function homeMemoCardHTML(dateValue) {
       const activeTab = state.homeJournalTab === "ai" ? "ai" : "memo";
       return `
-        <article class="home-journal-card" aria-label="${formatDateKo(dateValue)} 메모와 AI 피드백">
+        <article class="home-journal-card" data-active-tab="${activeTab}" aria-label="${formatDateKo(dateValue)} 메모와 AI 피드백">
           <div class="home-journal-tabs" role="tablist" aria-label="메모와 AI 피드백">
             <button class="home-journal-tab ${activeTab === "memo" ? "is-active" : ""}" type="button" role="tab" aria-selected="${activeTab === "memo"}" data-home-journal-tab="memo">
               <span class="material-symbols-outlined">edit_note</span>그날의 메모
@@ -2736,32 +2813,7 @@
             </button>
           </div>
           <div class="home-journal-panel">
-            ${activeTab === "memo" ? `
-              <section class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
-                <div class="home-memo-list">
-                  ${memoRows.length || dayMemo ? memoRows.map(row => `
-                    <div class="home-memo-item">
-                      <strong class="home-memo-label">${escapeHTML(metricDisplayLabel(row.typeKey))}</strong>
-                      <p class="home-memo-text">${escapeHTML(row.memo)}</p>
-                    </div>
-                  `).join("") : `<p class="home-memo-empty">아직 메모가 없습니다.</p>`}
-                  ${dayMemo ? `
-                    <div class="home-memo-item">
-                      <strong class="home-memo-label">메모</strong>
-                      <p class="home-memo-text">${escapeHTML(dayMemo)}</p>
-                    </div>
-                  ` : ""}
-                </div>
-                <div class="home-memo-actions">
-                  <button class="btn btn-ghost" type="button" data-open-day-memo>
-                    <span class="material-symbols-outlined">edit_note</span>오늘의 메모
-                  </button>
-                  <button class="btn btn-ghost home-copy-day-btn" type="button" data-copy-day-log>
-                    <span class="material-symbols-outlined">content_copy</span>오늘하루 복사하기
-                  </button>
-                </div>
-              </section>
-            ` : homeAiFeedbackCardHTML(dateValue)}
+            ${homeJournalPanelHTML(dateValue, activeTab)}
           </div>
         </article>
       `;
@@ -4170,8 +4222,7 @@
       }
       const journalTabButton = event.target.closest("[data-home-journal-tab]");
       if (journalTabButton) {
-        state.homeJournalTab = journalTabButton.dataset.homeJournalTab === "ai" ? "ai" : "memo";
-        renderHomeMemoCard();
+        setHomeJournalTab(journalTabButton.dataset.homeJournalTab);
         return;
       }
       const deleteFeedbackButton = event.target.closest("[data-delete-feedback]") || closestFromPoint("[data-delete-feedback]", event.clientX, event.clientY);
