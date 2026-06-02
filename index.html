@@ -256,10 +256,11 @@
     .today-metrics {
       display: grid;
       gap: 0;
-      touch-action: pan-y;
+      touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
       -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
     .today-metrics .metric-card {
       border-radius: 12px;
@@ -4120,8 +4121,11 @@
       let selectedPanelTouchDrag = null;
       let suppressSelectedPanelClick = false;
       let homeSwipeStart = null;
-      let homeTouchStart = null;
       const selectedDatePanel = document.querySelector("#selectedDatePanel");
+      const homeTodayCards = document.querySelector("#homeTodayCards");
+      const releaseHomePointer = pointerId => {
+        try { homeTodayCards.releasePointerCapture(pointerId); } catch (_) {}
+      };
 
       document.addEventListener("click", handleDocumentClick);
       document.addEventListener("change", event => {
@@ -4357,76 +4361,60 @@
         if (mode === "horizontal") restoreSelectedPanelList(selectedDatePanel.querySelector("#selectedDateList"));
         selectedDatePanel.classList.remove("is-panel-dragging");
       });
-      document.querySelector("#homeTodayCards").addEventListener("pointerdown", event => {
+      homeTodayCards.addEventListener("pointerdown", event => {
         if (event.target.closest(".home-date-nav")) return;
-        const metricsArea = event.target.closest(".today-metrics");
-        if (!metricsArea) return;
+        if (!event.target.closest(".today-metrics")) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
         homeSwipeStart = {
           x: event.clientX,
           y: event.clientY,
           pointerId: event.pointerId,
-          pointerType: event.pointerType,
-          card: event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]")
+          mode: null
         };
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
       });
-      document.querySelector("#homeTodayCards").addEventListener("pointerup", event => {
+      homeTodayCards.addEventListener("pointermove", event => {
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
+
         const dx = event.clientX - homeSwipeStart.x;
         const dy = event.clientY - homeSwipeStart.y;
-        const pointerId = homeSwipeStart.pointerId;
-        const tapCard = homeSwipeStart.card;
-        homeSwipeStart = null;
-        try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
-        if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.35) {
-          if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
-            const card = tapCard || metricCardFromPoint(event.clientX, event.clientY, event.currentTarget);
-            if (activateMetricCard(card)) {
-              suppressSwipeClickUntil = Date.now() + 350;
-            }
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (!homeSwipeStart.mode) {
+          if (absDx < 8 && absDy < 8) return;
+          if (absDx > absDy * 1.2) {
+            homeSwipeStart.mode = "horizontal";
+            try { homeTodayCards.setPointerCapture(event.pointerId); } catch (_) {}
+          } else {
+            homeSwipeStart = null;
+            return;
           }
-          return;
         }
-        suppressSwipeClickUntil = Date.now() + 350;
-        moveHomeDate(dx < 0 ? 1 : -1);
+
+        if (event.cancelable) event.preventDefault();
       });
-      document.querySelector("#homeTodayCards").addEventListener("pointercancel", event => {
-        if (!homeSwipeStart) return;
+      homeTodayCards.addEventListener("pointerup", event => {
+        if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
+
+        const dx = event.clientX - homeSwipeStart.x;
+        const dy = event.clientY - homeSwipeStart.y;
+        const mode = homeSwipeStart.mode;
         const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
-        try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
-      });
-      document.querySelector("#homeTodayCards").addEventListener("touchstart", event => {
-        if (event.target.closest(".home-date-nav")) return;
-        if (!event.target.closest(".today-metrics")) return;
-        if (event.touches.length !== 1) return;
-        const touch = event.touches[0];
-        homeTouchStart = {
-          x: touch.clientX,
-          y: touch.clientY,
-          card: event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]")
-        };
-      }, { passive: true });
-      document.querySelector("#homeTodayCards").addEventListener("touchend", event => {
-        if (!homeTouchStart || getOpenSheetLayer()) {
-          homeTouchStart = null;
-          return;
-        }
-        const touch = event.changedTouches[0];
-        const dx = touch.clientX - homeTouchStart.x;
-        const dy = touch.clientY - homeTouchStart.y;
-        const tapCard = homeTouchStart.card;
-        homeTouchStart = null;
-        if (Math.abs(dx) >= 12 || Math.abs(dy) >= 12) return;
-        if (activateMetricCard(tapCard)) {
-          if (event.cancelable) event.preventDefault();
+        releaseHomePointer(pointerId);
+
+        if (mode !== "horizontal") return;
+        if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
           suppressSwipeClickUntil = Date.now() + 350;
+          moveHomeDate(dx < 0 ? 1 : -1);
         }
-      }, { passive: false });
-      document.querySelector("#homeTodayCards").addEventListener("touchcancel", () => {
-        homeTouchStart = null;
-      }, { passive: true });
+      });
+      homeTodayCards.addEventListener("pointercancel", event => {
+        if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
+        const pointerId = homeSwipeStart.pointerId;
+        homeSwipeStart = null;
+        releaseHomePointer(pointerId);
+      });
       const statsChartArea = document.querySelector("#statsChartArea");
       const resetStatsChartDragStyle = () => {
         statsChartArea.style.transition = "";
