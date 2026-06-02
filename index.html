@@ -609,20 +609,6 @@
       display: grid;
       gap: 0;
     }
-    .home-memo-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-    .home-memo-title { margin: 0; font-size: 17px; font-weight: 850; }
-    .home-memo-count {
-      flex: 0 0 auto;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
-    }
     .home-memo-list { display: grid; gap: 11px; }
     .home-memo-item {
       display: grid;
@@ -670,26 +656,6 @@
     .home-ai-feedback-card {
       display: grid;
       gap: 12px;
-    }
-    .home-ai-feedback-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .home-ai-feedback-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      margin: 0;
-      color: var(--primary-dark);
-      font-size: 13px;
-      font-weight: 900;
-    }
-    .home-ai-feedback-model {
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 800;
     }
     .home-ai-feedback-text {
       margin: 0;
@@ -2727,10 +2693,6 @@
       const feedbackLoading = state.feedbackGeneratingDate === dateValue;
       return `
         <section class="home-ai-feedback-card" aria-label="${formatDateKo(dateValue)} AI 피드백">
-          <div class="home-ai-feedback-head">
-            <h4 class="home-ai-feedback-title"><span class="material-symbols-outlined">auto_awesome</span>AI 피드백</h4>
-            ${feedback ? `<span class="home-ai-feedback-model">${escapeHTML(aiFeedbackModelLabel(feedback.model || "gpt-5-nano"))}</span>` : ""}
-          </div>
           ${feedback ? `<p class="home-ai-feedback-text">${escapeHTML(feedback.feedbackText)}</p>` : `<p class="home-ai-feedback-empty">아직 AI 피드백이 없습니다.</p>`}
           ${aiFeedbackModelPickerHTML()}
           <div class="home-ai-feedback-actions ${feedback ? "" : "single"}">
@@ -2762,7 +2724,6 @@
     function homeMemoCardHTML(dateValue) {
       const memoRows = memoRowsForDate(dateValue);
       const dayMemo = dayMemoText(dateValue);
-      const memoCount = memoRows.length + (dayMemo ? 1 : 0);
       const activeTab = state.homeJournalTab === "ai" ? "ai" : "memo";
       return `
         <article class="home-journal-card" aria-label="${formatDateKo(dateValue)} 메모와 AI 피드백">
@@ -2777,10 +2738,6 @@
           <div class="home-journal-panel">
             ${activeTab === "memo" ? `
               <section class="home-memo-card" aria-label="${formatDateKo(dateValue)} 메모">
-                <div class="home-memo-head">
-                  <h3 class="home-memo-title">그날의 메모</h3>
-                  <span class="home-memo-count">${memoCount}개</span>
-                </div>
                 <div class="home-memo-list">
                   ${memoRows.length || dayMemo ? memoRows.map(row => `
                     <div class="home-memo-item">
