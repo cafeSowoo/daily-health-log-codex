@@ -256,7 +256,7 @@
     .today-metrics {
       display: grid;
       gap: 0;
-      touch-action: manipulation;
+      touch-action: pan-y;
       user-select: none;
       -webkit-user-select: none;
       -webkit-touch-callout: none;
@@ -4121,6 +4121,7 @@
       let selectedPanelTouchDrag = null;
       let suppressSelectedPanelClick = false;
       let homeSwipeStart = null;
+      let homeTouchDrag = null;
       const selectedDatePanel = document.querySelector("#selectedDatePanel");
       const homeTodayCards = document.querySelector("#homeTodayCards");
       const releaseHomePointer = pointerId => {
@@ -4361,7 +4362,60 @@
         if (mode === "horizontal") restoreSelectedPanelList(selectedDatePanel.querySelector("#selectedDateList"));
         selectedDatePanel.classList.remove("is-panel-dragging");
       });
+      homeTodayCards.addEventListener("touchstart", event => {
+        if (event.target.closest(".home-date-nav")) return;
+        if (!event.target.closest(".today-metrics")) return;
+        if (event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        homeTouchDrag = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          mode: null
+        };
+      }, { passive: true });
+      homeTodayCards.addEventListener("touchmove", event => {
+        if (!homeTouchDrag || event.touches.length !== 1) return;
+
+        const touch = event.touches[0];
+        const dx = touch.clientX - homeTouchDrag.startX;
+        const dy = touch.clientY - homeTouchDrag.startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (!homeTouchDrag.mode) {
+          if (absDx < 8 && absDy < 8) return;
+          if (absDx > absDy * 1.15) {
+            homeTouchDrag.mode = "horizontal";
+          } else if (absDy > absDx * 1.15) {
+            homeTouchDrag = null;
+            return;
+          } else {
+            return;
+          }
+        }
+
+        if (event.cancelable) event.preventDefault();
+      }, { passive: false });
+      homeTodayCards.addEventListener("touchend", event => {
+        if (!homeTouchDrag) return;
+
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - homeTouchDrag.startX;
+        const dy = touch.clientY - homeTouchDrag.startY;
+        const mode = homeTouchDrag.mode;
+        homeTouchDrag = null;
+
+        if (mode !== "horizontal") return;
+        if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+          suppressSwipeClickUntil = Date.now() + 350;
+          moveHomeDate(dx < 0 ? 1 : -1);
+        }
+      }, { passive: true });
+      homeTodayCards.addEventListener("touchcancel", () => {
+        homeTouchDrag = null;
+      }, { passive: true });
       homeTodayCards.addEventListener("pointerdown", event => {
+        if (event.pointerType === "touch") return;
         if (event.target.closest(".home-date-nav")) return;
         if (!event.target.closest(".today-metrics")) return;
         if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -4371,8 +4425,10 @@
           pointerId: event.pointerId,
           mode: null
         };
+        try { homeTodayCards.setPointerCapture(event.pointerId); } catch (_) {}
       });
       homeTodayCards.addEventListener("pointermove", event => {
+        if (event.pointerType === "touch") return;
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
 
         const dx = event.clientX - homeSwipeStart.x;
@@ -4384,9 +4440,11 @@
           if (absDx < 8 && absDy < 8) return;
           if (absDx > absDy * 1.2) {
             homeSwipeStart.mode = "horizontal";
-            try { homeTodayCards.setPointerCapture(event.pointerId); } catch (_) {}
-          } else {
+          } else if (absDy > absDx * 1.2) {
             homeSwipeStart = null;
+            releaseHomePointer(event.pointerId);
+            return;
+          } else {
             return;
           }
         }
@@ -4394,6 +4452,7 @@
         if (event.cancelable) event.preventDefault();
       });
       homeTodayCards.addEventListener("pointerup", event => {
+        if (event.pointerType === "touch") return;
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
 
         const dx = event.clientX - homeSwipeStart.x;
@@ -4410,6 +4469,7 @@
         }
       });
       homeTodayCards.addEventListener("pointercancel", event => {
+        if (event.pointerType === "touch") return;
         if (!homeSwipeStart || homeSwipeStart.pointerId !== event.pointerId) return;
         const pointerId = homeSwipeStart.pointerId;
         homeSwipeStart = null;
