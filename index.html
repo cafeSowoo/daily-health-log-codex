@@ -575,9 +575,11 @@
     .home-score-badge {
       display: inline-grid;
       place-items: center;
-      width: 36px;
-      min-width: 36px;
+      box-sizing: border-box;
+      width: 42px;
+      min-width: 42px;
       height: 33px;
+      padding: 0;
       border: 1px solid transparent;
       border-radius: 6px;
       font-size: 13px;
@@ -774,10 +776,15 @@
     .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .calendar-head > .quick-row { flex-wrap: nowrap; flex-shrink: 0; }
     .calendar-card {
-      touch-action: pan-y;
+      touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
     }
+    .calendar-body {
+      touch-action: manipulation;
+      overflow-x: clip;
+    }
+    .calendar-body.is-month-dragging { touch-action: none; }
     .weekday-grid, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
     .weekday-grid { margin-bottom: 8px; color: var(--faint); font-size: 11px; font-weight: 800; text-align: center; }
     .calendar-day {
@@ -1290,8 +1297,9 @@
         scrollbar-width: none;
         background: rgba(255, 253, 251, 0.94);
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
-        touch-action: pan-y;
+        touch-action: manipulation;
       }
+      #selectedDatePanel.is-panel-dragging { touch-action: none; }
       #selectedDatePanel .date-navigator { flex: 0 0 auto; }
       #selectedDatePanel [data-panel-dismiss-zone] {
         touch-action: none;
@@ -1365,7 +1373,7 @@
       .home-date-nav { gap: 6px; }
       .home-date-main { min-height: 36px; padding: 0 10px; font-size: 12px; }
       .home-date-today { min-height: 36px; padding: 0 10px; }
-      .home-score-badge { width: 36px; min-width: 36px; height: 33px; font-size: 13px; border-radius: 6px; }
+      .home-score-badge { width: 42px; min-width: 42px; height: 33px; font-size: 13px; border-radius: 6px; }
       .chart-toggle {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1444,10 +1452,12 @@
                 <button class="btn icon-btn" type="button" data-month-next aria-label="다음 달"><span class="material-symbols-outlined">chevron_right</span></button>
               </div>
             </div>
-            <div class="weekday-grid">
-              <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            <div class="calendar-body" id="calendarBody">
+              <div class="weekday-grid">
+                <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+              </div>
+              <div class="calendar-grid" id="calendarGrid"></div>
             </div>
-            <div class="calendar-grid" id="calendarGrid"></div>
           </article>
 
           <aside class="card card-pad" id="selectedDatePanel">
@@ -1666,7 +1676,7 @@
     };
     const authState = { initialized: false, session: null, user: null };
     const chartState = { metric: "exercise", weekStart: startOfWeekIso(todayIso) };
-    let calendarDrag = null;
+    let calendarMonthDrag = null;
     let statsChartDrag = null;
     let suppressCalendarClick = false;
     let records = [];
@@ -2998,10 +3008,28 @@
       if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
     }
 
+    function resetCalendarBodyDragStyle() {
+      const body = document.querySelector("#calendarBody");
+      if (!body) return;
+      body.classList.remove("is-month-dragging");
+      body.style.transition = "";
+      body.style.transform = "";
+      body.style.opacity = "";
+    }
+
     function changeCalendarMonth(delta) {
-      state.currentMonth = addMonths(state.currentMonth, delta);
-      renderCalendar();
-      if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
+      const applyMonth = () => {
+        state.currentMonth = addMonths(state.currentMonth, delta);
+        renderCalendar();
+        if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
+      };
+      const body = document.querySelector("#calendarBody");
+      if (!body || !delta) {
+        applyMonth();
+        return;
+      }
+      resetCalendarBodyDragStyle();
+      transitionDateView("#calendarBody", applyMonth, delta);
     }
 
     function renderSelectedDate() {
@@ -3076,6 +3104,7 @@
     function beginSelectedPanelHorizontal(panel, list, dx) {
       panel.classList.add("is-panel-dragging");
       if (!list) return;
+      list.classList.remove(...HL_ANIM_CLASSES);
       list.style.transition = "none";
       list.style.transform = `translateX(${dx}px)`;
       list.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 400));
@@ -4318,7 +4347,7 @@
     }
 
     function handleDocumentClick(event) {
-      if (Date.now() < suppressSwipeClickUntil && event.target.closest("#homeTodayCards, #selectedDatePanel")) {
+      if (Date.now() < suppressSwipeClickUntil && event.target.closest("#homeTodayCards, #selectedDatePanel, #calendarCard")) {
         event.preventDefault();
         return;
       }
@@ -4693,7 +4722,7 @@
           mode: null,
           canDismiss: Boolean(onDismissZone) || (Boolean(touchedList) && startScrollTop <= 0)
         };
-        if (!selectedPanelDrag.canDismiss && !touchedList) return;
+        if (!touchedList && !onDismissZone) return;
         try { selectedDatePanel.setPointerCapture(event.pointerId); } catch (_) {}
       });
       const releaseSelectedPanelPointer = pointerId => {
@@ -4954,55 +4983,158 @@
         resetStatsChartDragStyle();
       });
       const calendarCard = document.querySelector("#calendarCard");
-      if (calendarCard) {
-        const resetCalendarDrag = () => { calendarDrag = null; };
+      const calendarBody = document.querySelector("#calendarBody");
+      if (calendarCard && calendarBody) {
+        const isCalendarSwipeMobile = () => window.matchMedia("(max-width: 980px)").matches;
+
+        const canStartCalendarMonthSwipe = target => {
+          if (!target?.closest) return false;
+          if (target.closest("#selectedDatePanel")) return false;
+          if (target.closest("[data-month-prev], [data-month-next]")) return false;
+          return Boolean(target.closest("#calendarBody, .calendar-day, .weekday-grid, #calendarGrid"));
+        };
+
+        const beginCalendarMonthDrag = dx => {
+          calendarBody.classList.add("is-month-dragging");
+          calendarBody.style.transition = "none";
+          const offset = Math.max(-56, Math.min(56, dx * 0.38));
+          calendarBody.style.transform = `translateX(${offset}px)`;
+          calendarBody.style.opacity = String(Math.max(0.68, 1 - Math.abs(dx) / 380));
+        };
+
+        const finishCalendarMonthSwipe = (dx, dy) => {
+          resetCalendarBodyDragStyle();
+          if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+            suppressCalendarClick = true;
+            suppressSwipeClickUntil = Date.now() + 350;
+            window.setTimeout(() => { suppressCalendarClick = false; }, 300);
+            changeCalendarMonth(dx < 0 ? 1 : -1);
+            return true;
+          }
+          return false;
+        };
+
+        const resetMonthDrag = () => {
+          calendarMonthDrag = null;
+          resetCalendarBodyDragStyle();
+        };
+
+        calendarCard.addEventListener("touchstart", event => {
+          if (!isCalendarSwipeMobile()) return;
+          if (event.touches.length !== 1) return;
+          if (!canStartCalendarMonthSwipe(event.target)) return;
+          const touch = event.touches[0];
+          calendarMonthDrag = {
+            kind: "touch",
+            startX: touch.clientX,
+            startY: touch.clientY,
+            mode: null
+          };
+        }, { passive: true });
+
+        calendarCard.addEventListener("touchmove", event => {
+          if (!calendarMonthDrag || calendarMonthDrag.kind !== "touch" || event.touches.length !== 1) return;
+          const touch = event.touches[0];
+          const dx = touch.clientX - calendarMonthDrag.startX;
+          const dy = touch.clientY - calendarMonthDrag.startY;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+
+          if (!calendarMonthDrag.mode) {
+            if (absDx < 8 && absDy < 8) return;
+            if (absDx > absDy * 1.15) calendarMonthDrag.mode = "horizontal";
+            else if (absDy > absDx * 1.15) {
+              resetMonthDrag();
+              return;
+            } else return;
+          }
+
+          if (calendarMonthDrag.mode !== "horizontal") return;
+          if (event.cancelable) event.preventDefault();
+          beginCalendarMonthDrag(dx);
+        }, { passive: false });
+
+        calendarCard.addEventListener("touchend", event => {
+          if (!calendarMonthDrag || calendarMonthDrag.kind !== "touch") return;
+          const touch = event.changedTouches[0];
+          const dx = touch.clientX - calendarMonthDrag.startX;
+          const dy = touch.clientY - calendarMonthDrag.startY;
+          const mode = calendarMonthDrag.mode;
+          calendarMonthDrag = null;
+          if (mode !== "horizontal") {
+            resetCalendarBodyDragStyle();
+            return;
+          }
+          finishCalendarMonthSwipe(dx, dy);
+        }, { passive: true });
+
+        calendarCard.addEventListener("touchcancel", resetMonthDrag, { passive: true });
+
         calendarCard.addEventListener("pointerdown", event => {
-          if (!window.matchMedia("(max-width: 980px)").matches) return;
-          if (document.body.classList.contains("selected-date-active")) return;
+          if (event.pointerType === "touch") return;
+          if (!isCalendarSwipeMobile()) return;
           if (event.pointerType === "mouse" && event.button !== 0) return;
-          if (event.target.closest("[data-calendar-date], [data-month-prev], [data-month-next]")) return;
-          calendarDrag = {
+          if (!canStartCalendarMonthSwipe(event.target)) return;
+          calendarMonthDrag = {
+            kind: "pointer",
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
-            isHorizontal: false
+            mode: null
           };
           try { calendarCard.setPointerCapture(event.pointerId); } catch (_) {}
         });
+
         calendarCard.addEventListener("pointermove", event => {
-          if (!calendarDrag || calendarDrag.pointerId !== event.pointerId) return;
-          const dx = event.clientX - calendarDrag.startX;
-          const dy = event.clientY - calendarDrag.startY;
-          if (Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-            calendarDrag.isHorizontal = true;
-            if (event.cancelable) event.preventDefault();
+          if (!calendarMonthDrag || calendarMonthDrag.kind !== "pointer" || calendarMonthDrag.pointerId !== event.pointerId) return;
+          const dx = event.clientX - calendarMonthDrag.startX;
+          const dy = event.clientY - calendarMonthDrag.startY;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+
+          if (!calendarMonthDrag.mode) {
+            if (absDx < 8 && absDy < 8) return;
+            if (absDx > absDy * 1.15) calendarMonthDrag.mode = "horizontal";
+            else if (absDy > absDx * 1.15) {
+              try { calendarCard.releasePointerCapture(event.pointerId); } catch (_) {}
+              resetMonthDrag();
+              return;
+            } else return;
           }
+
+          if (calendarMonthDrag.mode !== "horizontal") return;
+          if (event.cancelable) event.preventDefault();
+          beginCalendarMonthDrag(dx);
         });
+
         calendarCard.addEventListener("pointerup", event => {
-          if (!calendarDrag || calendarDrag.pointerId !== event.pointerId) return;
-          const dx = event.clientX - calendarDrag.startX;
-          const dy = event.clientY - calendarDrag.startY;
-          const pointerId = calendarDrag.pointerId;
-          calendarDrag = null;
+          if (!calendarMonthDrag || calendarMonthDrag.kind !== "pointer" || calendarMonthDrag.pointerId !== event.pointerId) return;
+          const dx = event.clientX - calendarMonthDrag.startX;
+          const dy = event.clientY - calendarMonthDrag.startY;
+          const mode = calendarMonthDrag.mode;
+          const pointerId = calendarMonthDrag.pointerId;
+          calendarMonthDrag = null;
           try { calendarCard.releasePointerCapture(pointerId); } catch (_) {}
-          if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-            suppressCalendarClick = true;
-            changeCalendarMonth(dx < 0 ? 1 : -1);
-            window.setTimeout(() => { suppressCalendarClick = false; }, 250);
+          if (mode !== "horizontal") {
+            resetCalendarBodyDragStyle();
+            return;
           }
+          finishCalendarMonthSwipe(dx, dy);
         });
+
         calendarCard.addEventListener("pointercancel", event => {
-          if (calendarDrag?.pointerId === event.pointerId) {
-            try { calendarCard.releasePointerCapture(event.pointerId); } catch (_) {}
-            resetCalendarDrag();
-          }
+          if (!calendarMonthDrag || calendarMonthDrag.kind !== "pointer" || calendarMonthDrag.pointerId !== event.pointerId) return;
+          try { calendarCard.releasePointerCapture(event.pointerId); } catch (_) {}
+          resetMonthDrag();
         });
+
         calendarCard.addEventListener("click", event => {
           if (!suppressCalendarClick) return;
           event.preventDefault();
           event.stopPropagation();
           suppressCalendarClick = false;
         }, true);
+
         document.querySelector("#calendarGrid")?.addEventListener("click", event => {
           if (suppressCalendarClick) return;
           const dateButton = event.target.closest("[data-calendar-date]");
