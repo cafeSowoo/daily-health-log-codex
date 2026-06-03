@@ -443,7 +443,7 @@
       padding: 0 10px;
       border-radius: 999px;
       font-size: 13px;
-      font-weight: 900;
+      font-weight: 600;
       line-height: 1;
       white-space: nowrap;
     }
@@ -782,6 +782,11 @@
     .weekday-grid { margin-bottom: 8px; color: var(--faint); font-size: 11px; font-weight: 800; text-align: center; }
     .calendar-day {
       position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
       aspect-ratio: 1;
       min-height: 42px;
       border: 1px solid transparent;
@@ -790,15 +795,39 @@
       color: var(--text);
       font-size: 13px;
       font-weight: 800;
+      line-height: 1;
       touch-action: manipulation;
       cursor: pointer;
     }
+    .cal-day-num { font-size: 13px; font-weight: 800; color: var(--text); }
+    .calendar-day.selected .cal-day-num { color: #fffaf6; }
+    .cal-day-score {
+      display: none;
+      min-width: 22px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.58);
+      font-size: 10px;
+      font-weight: 400;
+      font-family: Inter, -apple-system, system-ui, "SF Pro Display", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
+      opacity: 0.92;
+    }
+    .cal-day-score.is-pending { color: var(--muted); opacity: 0.88; font-weight: 400; }
+    .cal-day-score.is-empty { display: none; }
+    .calendar-day.selected .cal-day-score { background: rgba(255, 250, 246, 0.24); color: #fffaf6; opacity: 0.94; }
+    .calendar-day.selected .cal-day-score.is-pending { color: rgba(255, 250, 246, 0.82); }
+    .calendar-day.score-high:not(.selected) .cal-day-score:not(.is-pending) { color: #2f6026; }
+    .calendar-day.score-good:not(.selected) .cal-day-score:not(.is-pending) { color: #755016; }
+    .calendar-day.score-mid:not(.selected) .cal-day-score:not(.is-pending) { color: #8d4326; }
+    .calendar-day.score-low:not(.selected) .cal-day-score:not(.is-pending) { color: #96362c; }
     .calendar-day:hover { border-color: rgba(155, 106, 74, 0.25); background: #fffaf6; }
     .calendar-day.is-muted { opacity: 0.28; pointer-events: none; }
-    .calendar-day.score-high:not(.selected) { background: #edf7e9; color: #2f6026; border-color: rgba(66, 114, 53, 0.1); }
-    .calendar-day.score-good:not(.selected) { background: #fbf1d4; color: #755016; border-color: rgba(139, 100, 40, 0.1); }
-    .calendar-day.score-mid:not(.selected) { background: #fae5d5; color: #8d4326; border-color: rgba(154, 85, 47, 0.1); }
-    .calendar-day.score-low:not(.selected) { background: #f8dedb; color: #96362c; border-color: rgba(168, 67, 54, 0.1); }
+    .calendar-day.score-high:not(.selected) { background: #edf7e9; border-color: rgba(66, 114, 53, 0.1); }
+    .calendar-day.score-good:not(.selected) { background: #fbf1d4; border-color: rgba(139, 100, 40, 0.1); }
+    .calendar-day.score-mid:not(.selected) { background: #fae5d5; border-color: rgba(154, 85, 47, 0.1); }
+    .calendar-day.score-low:not(.selected) { background: #f8dedb; border-color: rgba(168, 67, 54, 0.1); }
     .calendar-day.score-high:not(.selected):hover { background: #e5f2df; border-color: rgba(66, 114, 53, 0.2); }
     .calendar-day.score-good:not(.selected):hover { background: #f6e8bd; border-color: rgba(139, 100, 40, 0.2); }
     .calendar-day.score-mid:not(.selected):hover { background: #f5dac6; border-color: rgba(154, 85, 47, 0.2); }
@@ -1228,6 +1257,7 @@
     .hidden { display: none !important; }
 
     @media (max-width: 980px) {
+      .cal-day-score:not(.is-empty) { display: block; }
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
       .main { padding: calc(70px + env(safe-area-inset-top)) 16px 100px; }
@@ -1309,7 +1339,9 @@
       .top-actions .material-symbols-outlined { font-size: 18px; }
       .top-actions .auth-button [data-auth-label] { display: none; }
       .stats-grid, .form-grid, .detail-fields { grid-template-columns: 1fr; }
-      .calendar-day { min-height: 38px; border-radius: 11px; }
+      .calendar-day { min-height: 40px; border-radius: 11px; gap: 1px; }
+      .cal-day-num { font-size: 12px; }
+      .cal-day-score:not(.is-empty) { font-size: 12px; line-height: 1.05; }
       .page-title-row { gap: 8px; }
       .page-logo {
         width: 40px;
@@ -2927,6 +2959,23 @@
       ].map(([label, value]) => `<div class="mini-card"><div class="mini-label">${label}</div><div class="mini-value">${value}</div></div>`).join("");
     }
 
+    function calendarDayScoreHTML(scoreDisplay) {
+      if (scoreDisplay.isReady) {
+        return `<span class="cal-day-score">${scoreDisplay.score}</span>`;
+      }
+      if (scoreDisplay.inputCount > 0) {
+        return `<span class="cal-day-score is-pending">${scoreDisplay.inputCount}/4</span>`;
+      }
+      return `<span class="cal-day-score is-empty"></span>`;
+    }
+
+    function calendarDayAriaLabel(dateValue, scoreDisplay) {
+      const base = formatDateKo(dateValue);
+      if (scoreDisplay.isReady) return `${base} · 점수 ${scoreDisplay.score}점`;
+      if (scoreDisplay.inputCount > 0) return `${base} · 입력 ${scoreDisplay.inputCount}/4`;
+      return base;
+    }
+
     function renderCalendar() {
       document.querySelector("#calendarMonthTitle").textContent = monthLabel(state.currentMonth);
       const grid = document.querySelector("#calendarGrid");
@@ -2943,7 +2992,7 @@
           dateValue === todayIso ? "is-today" : "",
           dateValue === state.selectedDate ? "selected" : ""
         ].filter(Boolean).join(" ");
-        cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}" aria-label="${formatDateKo(dateValue)}${scoreDisplay.isReady ? ` 점수 ${scoreDisplay.score}점` : ""}">${day}</button>`);
+        cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}" aria-label="${escapeHTML(calendarDayAriaLabel(dateValue, scoreDisplay))}"><span class="cal-day-num">${day}</span>${calendarDayScoreHTML(scoreDisplay)}</button>`);
       }
       grid.innerHTML = cells.join("");
       if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
@@ -3170,23 +3219,40 @@
       return [`${formatDateKo(dateValue)} 기록`, ...sections].join("\n\n");
     }
 
-    async function copyTextToClipboard(text) {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        return;
-      }
-
+    function copyTextWithSelectionFallback(text) {
       const textarea = document.createElement("textarea");
       textarea.value = text;
       textarea.setAttribute("readonly", "");
       textarea.style.position = "fixed";
       textarea.style.left = "-9999px";
       textarea.style.top = "0";
+      textarea.style.opacity = "0";
       document.body.appendChild(textarea);
+      textarea.focus();
       textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
       const copied = document.execCommand("copy");
       textarea.remove();
       if (!copied) throw new Error("복사하지 못했습니다.");
+    }
+
+    async function copyTextToClipboard(text) {
+      try {
+        copyTextWithSelectionFallback(text);
+        return;
+      } catch (fallbackError) {
+        console.warn("Selection fallback copy failed; trying Clipboard API.", fallbackError);
+      }
+
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch (error) {
+          console.warn("Clipboard API copy failed.", error);
+        }
+      }
+      throw new Error("복사하지 못했습니다.");
     }
 
     async function copyDayLog(dateValue) {
