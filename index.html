@@ -1427,6 +1427,7 @@
               <option value="mood">마음</option>
               <option value="weight">무게</option>
               <option value="reading">독서</option>
+              <option value="organize">정리</option>
             </select>
           </div>
           <div id="recordsGroups"></div>
@@ -1525,6 +1526,7 @@
             <option value="mood">마음</option>
             <option value="weight">무게</option>
             <option value="reading">독서</option>
+            <option value="organize">정리</option>
             <option value="memo">메모</option>
           </select>
         </div>
@@ -1579,9 +1581,10 @@
       mood: { label: "마음", icon: "mood" },
       weight: { label: "무게", icon: "monitor_weight" },
       reading: { label: "독서", icon: "menu_book" },
+      organize: { label: "정리", icon: "fact_check" },
       memo: { label: "메모", icon: "edit_note" }
     };
-    const RECORD_TYPE_ORDER = ["exercise", "meal", "alcohol", "mood", "weight", "reading"];
+    const RECORD_TYPE_ORDER = ["exercise", "meal", "alcohol", "mood", "weight", "reading", "organize"];
 
     const todayIso = todayIsoLocal();
     const state = {
@@ -2539,6 +2542,9 @@
         if (isNoReadingPayload(p)) return ["📚 독서안함", p.memo || ""].filter(Boolean).join(" · ");
         return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
       }
+      if (record.type === "organize") {
+        return [p.summaryMinutes ? `${p.summaryMinutes}분` : "", p.memo || ""].filter(Boolean).join(" · ");
+      }
       return "";
     }
 
@@ -2613,6 +2619,12 @@
           p.todayMinutes ? { kind: "text", text: `⏱️ ${p.todayMinutes}분` } : null
         ].filter(Boolean);
         return fragments.length ? { fragments, empty: false } : { text: "독서 기록 있음", empty: false };
+      }
+      if (type === "organize") {
+        const fragments = [
+          p.summaryMinutes ? { kind: "text", text: `⏱️ ${p.summaryMinutes}분` } : null
+        ].filter(Boolean);
+        return fragments.length ? { fragments, empty: false } : { text: "정리 기록 있음", empty: false };
       }
       return { text: "기록 있음", empty: false };
     }
@@ -2692,10 +2704,22 @@
       `;
     }
 
+    function memoRowText(typeKey, record) {
+      if (!record) return "";
+      const p = record.payload || {};
+      if (typeKey === "organize") {
+        return [
+          p.summaryMinutes ? `${p.summaryMinutes}분` : "",
+          String(p.memo || "").trim()
+        ].filter(Boolean).join(" · ");
+      }
+      return String(p.memo || "").trim();
+    }
+
     function memoRowsForDate(dateValue) {
       return RECORD_TYPE_ORDER.map(typeKey => {
         const record = recordForDateType(dateValue, typeKey);
-        const memo = String(record?.payload?.memo || "").trim();
+        const memo = memoRowText(typeKey, record);
         return memo ? { typeKey, memo } : null;
       }).filter(Boolean);
     }
@@ -3060,6 +3084,9 @@
       if (record.type === "reading") {
         if (isNoReadingPayload(p)) return [["상태", "📚 독서안함"], ["메모", p.memo]];
         return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
+      }
+      if (record.type === "organize") {
+        return [["정리 시간", p.summaryMinutes ? `${p.summaryMinutes}분` : ""], ["메모", p.memo]];
       }
       if (record.type === "memo") return [["메모", p.memo]];
       return [];
@@ -3959,6 +3986,10 @@
           ${inputField("오늘 독서 시간", "todayMinutes", "number", value("todayMinutes"), "분")}
           ${textareaField("메모", "memo", value("memo"))}
         `,
+        organize: `
+          ${inputField("정리 시간", "summaryMinutes", "number", value("summaryMinutes"), "분")}
+          ${textareaField("메모", "memo", value("memo"))}
+        `,
         memo: `
           ${textareaField("오늘의 메모", "memo", value("memo"))}
         `
@@ -4095,6 +4126,7 @@
         const todayPages = number("todayPages");
         return { todayPages, todayMinutes: number("todayMinutes"), noReading: todayPages === 0, memo: get("memo") };
       }
+      if (type === "organize") return { summaryMinutes: number("summaryMinutes"), memo: get("memo") };
       if (type === "memo") return { memo: get("memo") };
       return {};
     }

@@ -76,6 +76,9 @@ function summarizeRecord(record: CodexRecord) {
     if (p.noReading || p.todayPages === 0 || p.todayPages === "0") return [`독서: 📚 독서안함`, compactText(p.memo)].filter(Boolean).join(" · ");
     return [`독서:`, p.todayPages ? `${p.todayPages}p` : "", p.todayMinutes ? `${p.todayMinutes}분` : "", compactText(p.memo)].filter(Boolean).join(" · ");
   }
+  if (record.record_type === "organize") {
+    return [`정리:`, p.summaryMinutes ? `${p.summaryMinutes}분` : "", compactText(p.memo)].filter(Boolean).join(" · ");
+  }
   if (record.record_type === "memo") return [`오늘의 메모:`, compactText(p.memo)].filter(Boolean).join(" ");
   return `${record.record_type}: ${JSON.stringify(p)}`;
 }
