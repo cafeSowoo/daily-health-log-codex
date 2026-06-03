@@ -1583,28 +1583,23 @@
               <span data-sheet-type-label>운동</span>
             </span>
           </h3>
-          <p class="section-meta">하루에 여러 항목을 자유롭게 남길 수 있습니다.</p>
         </div>
         <button class="btn icon-btn" type="button" data-close-sheet aria-label="닫기"><span class="material-symbols-outlined">close</span></button>
       </div>
 
       <form id="recordForm">
         <input type="hidden" id="recordId">
-        <div class="form-grid">
-          <label class="label">날짜
-            <input class="input" id="recordDate" type="date" required>
-          </label>
-          <select class="hidden" id="recordType" required aria-label="기록 유형">
-            <option value="exercise">운동</option>
-            <option value="meal">식사</option>
-            <option value="alcohol">음주</option>
-            <option value="mood">마음</option>
-            <option value="weight">무게</option>
-            <option value="reading">독서</option>
-            <option value="organize">정리</option>
-            <option value="memo">메모</option>
-          </select>
-        </div>
+        <input type="hidden" id="recordDate">
+        <select class="hidden" id="recordType" required aria-label="기록 유형">
+          <option value="exercise">운동</option>
+          <option value="meal">식사</option>
+          <option value="alcohol">음주</option>
+          <option value="mood">마음</option>
+          <option value="weight">무게</option>
+          <option value="reading">독서</option>
+          <option value="organize">정리</option>
+          <option value="memo">메모</option>
+        </select>
         <div class="form-grid" id="dynamicFields" style="margin-top:12px;"></div>
         <div class="sheet-actions">
           <button class="btn" type="button" data-close-sheet>취소</button>
