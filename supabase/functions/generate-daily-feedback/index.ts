@@ -54,6 +54,15 @@ function moodLabel(value: unknown) {
   return { 1: "매우 나쁨", 2: "나쁨", 3: "보통", 4: "좋음", 5: "매우 좋음" }[Number(value)] || "";
 }
 
+function readingPageCount(payload: Record<string, unknown>) {
+  const startPage = Number(payload.startPage || 0);
+  const endPage = Number(payload.endPage || 0);
+  const savedPages = Number(payload.todayPages || 0);
+  if (startPage > 0 && endPage > 0) return Math.max(0, endPage - startPage + 1);
+  if (endPage > 0 && !startPage) return endPage;
+  return savedPages;
+}
+
 function summarizeRecord(record: CodexRecord) {
   const p = record.payload || {};
   if (record.record_type === "exercise") {
@@ -73,8 +82,9 @@ function summarizeRecord(record: CodexRecord) {
     return [`무게:`, p.weightKg ? `${p.weightKg}kg` : "", compactText(p.memo)].filter(Boolean).join(" · ");
   }
   if (record.record_type === "reading") {
-    if (p.noReading || p.todayPages === 0 || p.todayPages === "0") return [`독서: 📚 독서안함`, compactText(p.memo)].filter(Boolean).join(" · ");
-    return [`독서:`, p.todayPages ? `${p.todayPages}p` : "", p.todayMinutes ? `${p.todayMinutes}분` : "", compactText(p.memo)].filter(Boolean).join(" · ");
+    const pages = readingPageCount(p);
+    if (p.noReading || pages === 0 || p.todayPages === "0") return [`독서: 📚 독서안함`, compactText(p.memo)].filter(Boolean).join(" · ");
+    return [`독서:`, p.bookTitle ? `책 ${p.bookTitle}` : "", pages ? `${pages}p` : "", p.todayMinutes ? `${p.todayMinutes}분` : "", compactText(p.memo)].filter(Boolean).join(" · ");
   }
   if (record.record_type === "organize") {
     return [`정리:`, p.summaryMinutes ? `${p.summaryMinutes}분` : "", compactText(p.memo)].filter(Boolean).join(" · ");

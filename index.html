@@ -447,6 +447,7 @@
       line-height: 1;
       white-space: nowrap;
     }
+    .metric-pill.level-0 { background: #eee9e4; color: #8c7f75; }
     .metric-pill.level-1 { background: #e4f3df; color: #427235; }
     .metric-pill.level-2 { background: #edf4df; color: #65783a; }
     .metric-pill.level-3 { background: #f6eddc; color: #8b6428; }
@@ -461,6 +462,36 @@
       font-weight: 800;
       line-height: 1.25;
       text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .metric-reading-summary {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 0;
+      margin-left: auto;
+      gap: 8px;
+      overflow: hidden;
+    }
+    .metric-reading-title {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .metric-reading-meta {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 6px;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.25;
       white-space: nowrap;
     }
     .metric-separator {
@@ -759,7 +790,8 @@
       color: var(--text);
       font-size: 13px;
       font-weight: 800;
-      touch-action: pan-y;
+      touch-action: manipulation;
+      cursor: pointer;
     }
     .calendar-day:hover { border-color: rgba(155, 106, 74, 0.25); background: #fffaf6; }
     .calendar-day.is-muted { opacity: 0.28; pointer-events: none; }
@@ -1051,6 +1083,12 @@
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .label { display: grid; gap: 7px; color: var(--text); font-size: 13px; font-weight: 800; }
     .label.full { grid-column: 1 / -1; }
+    .inline-field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      grid-column: 1 / -1;
+    }
     .choice-field { display: grid; gap: 8px; color: var(--text); font-size: 13px; font-weight: 800; }
     .choice-field.full { grid-column: 1 / -1; }
     .choice-row {
@@ -1212,11 +1250,11 @@
         top: var(--panel-top, 64px);
         left: 0;
         right: 0;
-        bottom: auto;
         z-index: 30;
         flex-direction: column;
         min-height: 0;
-        max-height: none;
+        height: auto;
+        max-height: calc(100dvh - var(--panel-top, 64px) - 104px);
         overflow: hidden;
         overflow-x: clip;
         scrollbar-width: none;
@@ -1244,8 +1282,9 @@
         overflow-y: hidden;
       }
       #selectedDatePanel #selectedDateList {
-        flex: 1 1 auto;
+        flex: 0 1 auto;
         min-height: 0;
+        max-height: calc(100dvh - var(--panel-top, 64px) - 196px);
         overflow-y: auto;
         overflow-x: clip;
         scrollbar-width: none;
@@ -1328,7 +1367,6 @@
       <nav class="nav" aria-label="주요 화면">
         <button class="nav-item active" type="button" data-view="home"><span class="material-symbols-outlined">dashboard</span>Home</button>
         <button class="nav-item" type="button" data-view="calendar"><span class="material-symbols-outlined">calendar_month</span>Calendar</button>
-        <button class="nav-item" type="button" data-view="records"><span class="material-symbols-outlined">calendar_today</span>Records</button>
         <button class="nav-item" type="button" data-view="stats"><span class="material-symbols-outlined">monitoring</span>Stats</button>
         <button class="nav-item" type="button" data-view="profile"><span class="material-symbols-outlined">settings</span>Profile</button>
       </nav>
@@ -1360,19 +1398,6 @@
       <section id="home" class="view active">
         <div class="today-overview" id="homeTodayCards"></div>
         <div id="homeMemoCard"></div>
-
-        <div class="grid home-block">
-          <article class="card card-pad">
-            <div class="calendar-head">
-              <div>
-                <h3 class="section-title">이번주 누적</h3>
-                <p class="section-meta" id="homeWeekMeta">이번주 기준</p>
-              </div>
-              <button class="btn btn-ghost" type="button" data-view="stats"><span class="material-symbols-outlined">monitoring</span>Stats</button>
-            </div>
-            <div class="mini-cards" id="homeWeek"></div>
-          </article>
-        </div>
       </section>
 
       <section id="calendar" class="view">
@@ -1450,6 +1475,15 @@
           <div class="chart-toggle" id="statsChartToggle"></div>
           <div class="chart-canvas" id="statsChartArea"></div>
         </article>
+        <article class="card card-pad home-block">
+          <div class="calendar-head">
+            <div>
+              <h3 class="section-title">표시 주 누적</h3>
+              <p class="section-meta" id="statsWeekMeta">차트 기준</p>
+            </div>
+          </div>
+          <div class="mini-cards" id="statsWeekSummary"></div>
+        </article>
       </section>
 
       <section id="profile" class="view">
@@ -1492,7 +1526,6 @@
   <nav class="bottom-nav" aria-label="모바일 화면">
     <button class="nav-item active" type="button" data-view="home"><span class="material-symbols-outlined">dashboard</span>Home</button>
     <button class="nav-item" type="button" data-view="calendar"><span class="material-symbols-outlined">calendar_today</span>Calendar</button>
-    <button class="nav-item" type="button" data-view="records"><span class="material-symbols-outlined">calendar_today</span>Records</button>
     <button class="nav-item" type="button" data-view="stats"><span class="material-symbols-outlined">monitoring</span>Stats</button>
   </nav>
 
@@ -2384,7 +2417,7 @@
     function scoreReading(record) {
       if (!record) return 0;
       if (isNoReadingPayload(record.payload)) return 5;
-      const pages = Number(record.payload?.todayPages || 0);
+      const pages = readingPageCount(record.payload);
       if (pages >= 30) return 20;
       if (pages >= 20) return 15;
       if (pages >= 10) return 10;
@@ -2392,8 +2425,17 @@
       return 0;
     }
 
+    function readingPageCount(payload = {}) {
+      const startPage = Number(payload.startPage || 0);
+      const endPage = Number(payload.endPage || 0);
+      const savedPages = Number(payload.todayPages || 0);
+      if (startPage > 0 && endPage > 0) return Math.max(0, endPage - startPage + 1);
+      if (endPage > 0 && !startPage) return endPage;
+      return savedPages;
+    }
+
     function isNoReadingPayload(payload = {}) {
-      return Boolean(payload.noReading) || payload.todayPages === 0 || payload.todayPages === "0";
+      return Boolean(payload.noReading) || readingPageCount(payload) === 0 || payload.todayPages === "0";
     }
 
     function dailyScoreForDate(dateValue) {
@@ -2475,7 +2517,7 @@
 
     function readingScoreReason(record) {
       if (!record) return "독서 기록 없음";
-      const pages = Number(record.payload?.todayPages || 0);
+      const pages = readingPageCount(record.payload);
       if (isNoReadingPayload(record.payload)) return "📚 독서안함";
       if (!pages) return "읽은 페이지 미입력";
       return pages >= 30 ? `${pages}페이지, 목표 달성` : `${pages}페이지 읽음`;
@@ -2540,7 +2582,7 @@
       if (record.type === "weight") return [p.weightKg ? `${p.weightKg}kg` : "무게", p.memo || ""].filter(Boolean).join(" · ");
       if (record.type === "reading") {
         if (isNoReadingPayload(p)) return ["📚 독서안함", p.memo || ""].filter(Boolean).join(" · ");
-        return [`오늘 ${p.todayPages || 0}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
+        return [p.bookTitle || "", `오늘 ${readingPageCount(p)}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
       }
       if (record.type === "organize") {
         return [p.summaryMinutes ? `${p.summaryMinutes}분` : "", p.memo || ""].filter(Boolean).join(" · ");
@@ -2589,10 +2631,12 @@
         return fragments.length ? { fragments, empty: false } : { text: "운동 기록 있음", empty: false };
       }
       if (type === "meal") {
-        const fragments = [
-          p.lunchAmount ? { kind: "state", label: "☀️ 점심", text: mealAmountLabel(p.lunchAmount), level: mealAmountToneLevel(p.lunchAmount) } : null,
-          p.dinnerAmount ? { kind: "state", label: "🌙 저녁", text: mealAmountLabel(p.dinnerAmount), level: mealAmountToneLevel(p.dinnerAmount) } : null,
-          p.foodType && !p.lunchAmount && !p.dinnerAmount ? { kind: "text", text: p.foodType } : null
+        const hasMealAmount = Boolean(p.lunchAmount || p.dinnerAmount);
+        const fragments = hasMealAmount ? [
+          { kind: "state", label: "☀️ 점심", text: p.lunchAmount ? mealAmountLabel(p.lunchAmount) : "미입력", level: p.lunchAmount ? mealAmountToneLevel(p.lunchAmount) : 0 },
+          { kind: "state", label: "🌙 저녁", text: p.dinnerAmount ? mealAmountLabel(p.dinnerAmount) : "미입력", level: p.dinnerAmount ? mealAmountToneLevel(p.dinnerAmount) : 0 }
+        ] : [
+          p.foodType ? { kind: "text", text: p.foodType } : null
         ].filter(Boolean);
         return fragments.length ? { fragments, empty: false } : { text: "식사 기록 있음", empty: false };
       }
@@ -2604,9 +2648,11 @@
         return { fragments, empty: false };
       }
       if (type === "mood") {
-        const fragments = [];
-        if (p.level) fragments.push({ kind: "state", label: "마음", text: moodLabel(p.level) || p.level, level: moodToneLevel(p.level) });
-        if (p.workLevel) fragments.push({ kind: "state", label: "업무", text: moodLabel(p.workLevel) || p.workLevel, level: moodToneLevel(p.workLevel) });
+        const hasMoodLevel = Boolean(p.level || p.workLevel);
+        const fragments = hasMoodLevel ? [
+          { kind: "state", label: "마음", text: p.level ? moodLabel(p.level) || p.level : "미입력", level: p.level ? moodToneLevel(p.level) : 0 },
+          { kind: "state", label: "업무", text: p.workLevel ? moodLabel(p.workLevel) || p.workLevel : "미입력", level: p.workLevel ? moodToneLevel(p.workLevel) : 0 }
+        ] : [];
         return fragments.length ? { fragments, empty: false } : { text: "마음 기록 있음", empty: false };
       }
       if (type === "weight") {
@@ -2614,11 +2660,14 @@
       }
       if (type === "reading") {
         if (isNoReadingPayload(p)) return { text: "📚 독서안함", empty: false };
-        const fragments = [
-          p.todayPages ? { kind: "text", text: `🔖 ${p.todayPages}p` } : null,
-          p.todayMinutes ? { kind: "text", text: `⏱️ ${p.todayMinutes}분` } : null
-        ].filter(Boolean);
-        return fragments.length ? { fragments, empty: false } : { text: "독서 기록 있음", empty: false };
+        const pages = readingPageCount(p);
+        return {
+          kind: "reading",
+          title: p.bookTitle || "",
+          pagesText: `🔖 ${pages}p`,
+          minutesText: `⏱️ ${Number(p.todayMinutes || 0)}분`,
+          empty: false
+        };
       }
       if (type === "organize") {
         const fragments = [
@@ -2640,6 +2689,18 @@
     }
 
     function metricSummaryHTML(metric) {
+      if (metric.kind === "reading") {
+        return `
+          <span class="metric-reading-summary">
+            ${metric.title ? `<span class="metric-reading-title">📖 ${escapeHTML(metric.title)}</span>` : ""}
+            <span class="metric-reading-meta">
+              <span>${escapeHTML(metric.pagesText)}</span>
+              <span class="metric-separator">·</span>
+              <span>${escapeHTML(metric.minutesText)}</span>
+            </span>
+          </span>
+        `;
+      }
       if (metric.fragments?.length) {
         return `<span class="metric-pills">${metric.fragments.map(metricFragmentHTML).join(`<span class="metric-separator">·</span>`)}</span>`;
       }
@@ -2681,7 +2742,6 @@
     function renderHome() {
       renderHomeTodayCards();
       renderHomeMemoCard();
-      renderHomeWeek();
     }
 
     function renderHomeTodayCards() {
@@ -2847,16 +2907,19 @@
       document.querySelector("#homeMemoCard").innerHTML = homeMemoCardHTML(state.homeDate);
     }
 
-    function renderHomeWeek() {
-      const weekRows = recordsThisWeek(state.homeDate);
+    function renderStatsWeekSummary() {
+      const weekRows = recordsThisWeek(chartState.weekStart);
       const exerciseMinutes = sumPayload(weekRows, "exercise", "durationMinutes");
-      const readingPages = sumPayload(weekRows, "reading", "todayPages");
+      const readingPages = weekRows
+        .filter(row => row.type === "reading")
+        .reduce((sum, row) => sum + readingPageCount(row.payload), 0);
       const alcoholCount = weekRows.filter(r => r.type === "alcohol" && hasAlcohol(r.payload)).length;
       const moodRows = weekRows.filter(r => r.type === "mood" && Number(r.payload?.level));
       const moodAverage = moodRows.length ? (moodRows.reduce((sum, r) => sum + Number(r.payload.level), 0) / moodRows.length).toFixed(1) : "—";
 
-      document.querySelector("#homeWeekMeta").textContent = `${formatDateKo(startOfWeekIso(state.homeDate))}부터`;
-      document.querySelector("#homeWeek").innerHTML = [
+      const days = currentWeekDays();
+      document.querySelector("#statsWeekMeta").textContent = weekRangeLabel(days);
+      document.querySelector("#statsWeekSummary").innerHTML = [
         ["주간 운동", `${exerciseMinutes}분`],
         ["주간 독서", `${readingPages}p`],
         ["음주 횟수", `${alcoholCount}회`],
@@ -2883,6 +2946,7 @@
         cells.push(`<button class="${classes}" type="button" data-calendar-date="${dateValue}" aria-label="${formatDateKo(dateValue)}${scoreDisplay.isReady ? ` 점수 ${scoreDisplay.score}점` : ""}">${day}</button>`);
       }
       grid.innerHTML = cells.join("");
+      if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
     }
 
     function changeCalendarMonth(delta) {
@@ -2899,12 +2963,11 @@
     function updatePanelGeometry() {
       const panel = document.querySelector("#selectedDatePanel");
       const layout = document.querySelector("#calendarLayout");
-      const weekday = layout ? layout.querySelector(".weekday-grid") : null;
+      const weekday = layout?.querySelector(".weekday-grid");
       if (!panel || !layout || !weekday) return;
       const isMobile = window.matchMedia("(max-width: 980px)").matches;
       if (!isMobile) {
         panel.style.removeProperty("--panel-top");
-        panel.style.removeProperty("--panel-bottom");
         return;
       }
       requestAnimationFrame(() => {
@@ -2912,12 +2975,6 @@
         const weekdayRect = weekday.getBoundingClientRect();
         const topOffset = Math.max(0, weekdayRect.bottom - layoutRect.top + 6);
         panel.style.setProperty("--panel-top", `${topOffset}px`);
-        const nav = document.querySelector(".bottom-nav");
-        if (nav) {
-          const navRect = nav.getBoundingClientRect();
-          const bottomOffset = layoutRect.bottom - (navRect.top - 8);
-          panel.style.setProperty("--panel-bottom", `${bottomOffset}px`);
-        }
       });
     }
 
@@ -3083,7 +3140,7 @@
       if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
       if (record.type === "reading") {
         if (isNoReadingPayload(p)) return [["상태", "📚 독서안함"], ["메모", p.memo]];
-        return [["오늘 읽은 페이지", p.todayPages ? `${p.todayPages}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
+        return [["책 제목", p.bookTitle], ["시작 페이지", p.startPage ? `${p.startPage}p` : ""], ["종료 페이지", p.endPage ? `${p.endPage}p` : ""], ["읽은 페이지", readingPageCount(p) ? `${readingPageCount(p)}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
       }
       if (record.type === "organize") {
         return [["정리 시간", p.summaryMinutes ? `${p.summaryMinutes}분` : ""], ["메모", p.memo]];
@@ -3283,7 +3340,7 @@
         axis: { type: "numeric", unit: "p", min: 0 },
         points(iso) {
           const record = recordForDateType(iso, "reading");
-          const pages = Number(record?.payload?.todayPages || 0);
+          const pages = readingPageCount(record?.payload || {});
           if (!record || !pages) return [];
           return [{ y: pages, emoji: "📖", valueLabel: `${pages}p` }];
         }
@@ -3433,10 +3490,12 @@
       document.querySelector("#statsChartArea").innerHTML = buildChartSVG(metric, days, dayPoints);
 
       document.querySelector("#statsChartMeta").textContent = `${weekRangeLabel(days)} · ${metric.label}`;
+      renderStatsWeekSummary();
     }
 
     function renderStats() {
       renderStatsChart();
+      renderStatsWeekSummary();
     }
 
     function weekRangeLabel(days) {
@@ -3456,6 +3515,7 @@
     function moveStatsWeek(delta) {
       chartState.weekStart = addDays(chartState.weekStart, delta * 7);
       transitionDateView("#statsChartArea", renderStatsChart, delta);
+      renderStatsWeekSummary();
     }
 
     function renderProfile() {
@@ -3982,7 +4042,11 @@
           ${textareaField("메모", "memo", value("memo"))}
         `,
         reading: `
-          ${inputField("오늘 읽은 페이지", "todayPages", "number", value("todayPages"), "페이지")}
+          ${inputField("책 제목", "bookTitle", "text", value("bookTitle"), "책 제목")}
+          <div class="inline-field-row">
+            ${inputField("시작 페이지", "startPage", "number", value("startPage"), "페이지")}
+            ${inputField("종료 페이지", "endPage", "number", value("endPage") || value("todayPages"), "페이지")}
+          </div>
           ${inputField("오늘 독서 시간", "todayMinutes", "number", value("todayMinutes"), "분")}
           ${textareaField("메모", "memo", value("memo"))}
         `,
@@ -4123,8 +4187,10 @@
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
       if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
       if (type === "reading") {
-        const todayPages = number("todayPages");
-        return { todayPages, todayMinutes: number("todayMinutes"), noReading: todayPages === 0, memo: get("memo") };
+        const startPage = number("startPage");
+        const endPage = number("endPage");
+        const todayPages = readingPageCount({ startPage, endPage });
+        return { bookTitle: get("bookTitle"), startPage, endPage, todayPages, todayMinutes: number("todayMinutes"), noReading: todayPages === 0, memo: get("memo") };
       }
       if (type === "organize") return { summaryMinutes: number("summaryMinutes"), memo: get("memo") };
       if (type === "memo") return { memo: get("memo") };
@@ -4828,7 +4894,7 @@
           if (!window.matchMedia("(max-width: 980px)").matches) return;
           if (document.body.classList.contains("selected-date-active")) return;
           if (event.pointerType === "mouse" && event.button !== 0) return;
-          if (event.target.closest("[data-month-prev], [data-month-next]")) return;
+          if (event.target.closest("[data-calendar-date], [data-month-prev], [data-month-next]")) return;
           calendarDrag = {
             pointerId: event.pointerId,
             startX: event.clientX,
@@ -4871,6 +4937,13 @@
           event.stopPropagation();
           suppressCalendarClick = false;
         }, true);
+        document.querySelector("#calendarGrid")?.addEventListener("click", event => {
+          if (suppressCalendarClick) return;
+          const dateButton = event.target.closest("[data-calendar-date]");
+          if (!dateButton) return;
+          event.stopPropagation();
+          setSelectedDate(dateButton.dataset.calendarDate);
+        });
       }
       const onViewportChange = () => {
         if (document.body.classList.contains("selected-date-active")) updatePanelGeometry();
