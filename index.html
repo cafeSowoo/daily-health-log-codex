@@ -737,22 +737,94 @@
       width: 100%;
       justify-content: center;
     }
-    .home-ai-model-row {
-      display: grid;
+    .home-ai-model-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 40px;
       margin-top: 14px;
-    }
-    .home-ai-model-select {
-      min-width: 0;
-      height: 41px;
       padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.58);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      list-style: none;
+      touch-action: manipulation;
+    }
+    .home-ai-model-button::after {
+      content: "expand_more";
+      flex: 0 0 auto;
+      color: var(--primary-dark);
+      font-family: "Material Symbols Outlined";
+      font-size: 20px;
+      font-weight: normal;
+      line-height: 1;
+    }
+    .home-ai-model-summary-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .home-ai-model-summary-label .material-symbols-outlined {
+      font-size: 18px;
+      color: var(--primary-dark);
+    }
+    .home-ai-model-current {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--faint);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .model-choice-list {
+      display: grid;
+      gap: 10px;
+    }
+    .model-choice {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 24px;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 58px;
+      padding: 12px 14px;
       border: 1px solid var(--line);
       border-radius: 14px;
       background: rgba(255,255,255,0.74);
       color: var(--ink);
       font: inherit;
-      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .model-choice strong {
+      display: block;
+      font-size: 14px;
       font-weight: 850;
     }
+    .model-choice span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .model-choice .material-symbols-outlined {
+      color: transparent;
+      font-size: 22px;
+    }
+    .model-choice.active {
+      border-color: rgba(155, 106, 74, 0.42);
+      background: #fffaf6;
+      box-shadow: 0 10px 24px rgba(112, 71, 47, 0.08);
+    }
+    .model-choice.active .material-symbols-outlined { color: var(--primary); }
     .home-block { margin-top: 18px; }
     .yesterday-list { display: grid; gap: 9px; margin-top: 14px; }
     .yesterday-item { display: flex; align-items: center; gap: 10px; color: #57463c; font-size: 14px; font-weight: 750; }
@@ -852,11 +924,36 @@
       width: 100%;
       min-width: 0;
     }
-    .date-title-wrap { min-width: 0; }
+    .selected-panel-grip { display: none; }
+    .selected-head-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .date-title-wrap {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
     .date-title-wrap .section-title {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .selected-panel-kicker {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0;
+    }
+    .selected-date-summary {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
     }
     .date-nav-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .date-today-btn { min-height: 38px; padding: 0 12px; }
@@ -1299,8 +1396,19 @@
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
         touch-action: manipulation;
       }
+      .selected-panel-grip {
+        display: block;
+        width: 38px;
+        height: 4px;
+        margin: 0 auto 12px;
+        border-radius: 999px;
+        background: rgba(134, 117, 107, 0.28);
+      }
       #selectedDatePanel.is-panel-dragging { touch-action: none; }
-      #selectedDatePanel .date-navigator { flex: 0 0 auto; }
+      #selectedDatePanel .date-navigator {
+        flex: 0 0 auto;
+        align-items: flex-start;
+      }
       #selectedDatePanel [data-panel-dismiss-zone] {
         touch-action: none;
         user-select: none;
@@ -1461,11 +1569,14 @@
           </article>
 
           <aside class="card card-pad" id="selectedDatePanel">
+            <div class="selected-panel-grip" aria-hidden="true"></div>
             <div class="calendar-head date-navigator" data-panel-dismiss-zone>
               <div class="selected-head-left">
                 <button class="btn icon-btn selected-back" type="button" data-selected-close aria-label="달력으로 돌아가기"><span class="material-symbols-outlined">arrow_back</span></button>
                 <div class="date-title-wrap">
+                  <p class="selected-panel-kicker">선택한 날짜 기록</p>
                   <h3 class="section-title" id="selectedDateTitle">오늘</h3>
+                  <p class="selected-date-summary" id="selectedDateSummary"></p>
                 </div>
               </div>
               <div class="date-nav-actions" aria-label="선택 날짜 이동">
@@ -1623,6 +1734,20 @@
     </div>
   </section>
 
+  <section id="aiModelSheet" class="sheet" aria-hidden="true">
+    <button class="sheet-backdrop" type="button" data-close-ai-model-sheet aria-label="AI 모델 선택 닫기"></button>
+    <div class="sheet-panel">
+      <div class="sheet-head" data-sheet-dismiss-zone>
+        <div>
+          <h3 class="sheet-title">AI 모델 선택</h3>
+          <p class="section-meta">피드백 생성에 사용할 모델을 고릅니다.</p>
+        </div>
+        <button class="btn icon-btn" type="button" data-close-ai-model-sheet aria-label="닫기"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="model-choice-list" id="aiModelChoices"></div>
+    </div>
+  </section>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -1634,12 +1759,12 @@
     const CODEX_SETTINGS_KEY = "codex_daily_health_settings_v1";
     const SUPABASE_REQUEST_TIMEOUT_MS = 12000;
     const AI_FEEDBACK_MODELS = [
-      { id: "gpt-5-nano", label: "GPT-5 Nano", provider: "OpenAI" },
       { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview", provider: "Gemini" },
+      { id: "gpt-5-nano", label: "GPT-5 Nano", provider: "OpenAI" },
       { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Gemini" },
       { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", provider: "Gemini" }
     ];
-    const DEFAULT_AI_FEEDBACK_MODEL = AI_FEEDBACK_MODELS[0].id;
+    const DEFAULT_AI_FEEDBACK_MODEL = "gemini-3-flash-preview";
     const supabaseClient = CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && window.supabase
       ? window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey)
       : null;
@@ -2854,13 +2979,12 @@
 
     function aiFeedbackModelPickerHTML(activeModel = selectedAiFeedbackModel()) {
       return `
-        <div class="home-ai-model-row">
-          <select class="home-ai-model-select" data-ai-model-select aria-label="AI 피드백 모델 선택">
-            ${AI_FEEDBACK_MODELS.map(model => `
-              <option value="${escapeHTML(model.id)}" ${model.id === activeModel ? "selected" : ""}>${escapeHTML(model.label)}</option>
-            `).join("")}
-          </select>
-        </div>
+        <button class="home-ai-model-button" type="button" data-open-ai-model-sheet aria-label="AI 피드백 모델 설정">
+          <span class="home-ai-model-summary-label">
+            <span class="material-symbols-outlined" aria-hidden="true">tune</span>모델 설정
+          </span>
+          <span class="home-ai-model-current">${escapeHTML(aiFeedbackModelLabel(activeModel))}</span>
+        </button>
       `;
     }
 
@@ -3028,7 +3152,11 @@
     }
 
     function renderSelectedDate() {
+      const scoreDisplay = scoreDisplayForDate(state.selectedDate);
+      const inputCount = recordsForDate(state.selectedDate).filter(item => RECORD_TYPE_ORDER.includes(item.type)).length;
+      const scoreText = scoreDisplay.isReady ? `점수 ${scoreDisplay.score}점` : scoreDisplay.inputCount > 0 ? `점수 미산정 · ${scoreDisplay.inputCount}/4 입력` : "점수 미산정";
       document.querySelector("#selectedDateTitle").textContent = formatDateKo(state.selectedDate);
+      document.querySelector("#selectedDateSummary").textContent = `기록 ${inputCount}개 · ${scoreText}`;
       document.querySelector("#selectedDateList").innerHTML = metricCardsForDateHTML(state.selectedDate);
     }
 
@@ -3668,7 +3796,7 @@
     }
 
     function isAnySheetOpen() {
-      return isSheetOpen("#recordSheet") || isSheetOpen("#scoreSheet");
+      return isSheetOpen("#recordSheet") || isSheetOpen("#scoreSheet") || isSheetOpen("#aiModelSheet");
     }
 
     function resetSheetPanelTransform(panel) {
@@ -3840,6 +3968,10 @@
       }
       if (isSheetOpen("#scoreSheet")) {
         closeScoreSheet({ fromHistory: true });
+        return;
+      }
+      if (isSheetOpen("#aiModelSheet")) {
+        closeAiModelSheet({ fromHistory: true });
       }
     }
 
@@ -4086,6 +4218,36 @@
         fromHistory,
         onClosed: () => {
           document.querySelector("#scoreBreakdown").innerHTML = "";
+        }
+      });
+    }
+
+    function renderAiModelChoices() {
+      const activeModel = selectedAiFeedbackModel();
+      document.querySelector("#aiModelChoices").innerHTML = AI_FEEDBACK_MODELS.map(model => `
+        <button class="model-choice ${model.id === activeModel ? "active" : ""}" type="button" data-ai-model-choice="${escapeHTML(model.id)}" aria-label="${escapeHTML(model.label)} 선택">
+          <span>
+            <strong>${escapeHTML(model.label)}</strong>
+            <span>${escapeHTML(model.provider)}</span>
+          </span>
+          <span class="material-symbols-outlined" aria-hidden="true">check</span>
+        </button>
+      `).join("");
+    }
+
+    function openAiModelSheet() {
+      const sheet = document.querySelector("#aiModelSheet");
+      renderAiModelChoices();
+      prepareSheetOpen(sheet, "ai-model");
+    }
+
+    function closeAiModelSheet({ fromHistory = false } = {}) {
+      closeSheetLayer({
+        sheetSelector: "#aiModelSheet",
+        kind: "ai-model",
+        fromHistory,
+        onClosed: () => {
+          document.querySelector("#aiModelChoices").innerHTML = "";
         }
       });
     }
@@ -4413,6 +4575,22 @@
         setHomeJournalTab(journalTabButton.dataset.homeJournalTab);
         return;
       }
+      if (event.target.closest("[data-open-ai-model-sheet]")) {
+        openAiModelSheet();
+        return;
+      }
+      if (event.target.closest("[data-close-ai-model-sheet]")) {
+        closeAiModelSheet();
+        return;
+      }
+      const aiModelChoice = event.target.closest("[data-ai-model-choice]");
+      if (aiModelChoice) {
+        saveAiFeedbackModel(aiModelChoice.dataset.aiModelChoice);
+        renderHomeMemoCard();
+        closeAiModelSheet();
+        showToast(`${aiFeedbackModelLabel(aiModelChoice.dataset.aiModelChoice)} 모델을 선택했습니다.`);
+        return;
+      }
       const deleteFeedbackButton = event.target.closest("[data-delete-feedback]") || closestFromPoint("[data-delete-feedback]", event.clientX, event.clientY);
       if (deleteFeedbackButton) {
         const dateValue = deleteFeedbackButton.dataset.feedbackDate || state.homeDate;
@@ -4546,12 +4724,6 @@
         cancelSoftPress(activeSoftPress.target);
         activeSoftPress = null;
       }, true);
-      document.addEventListener("change", event => {
-        const select = event.target.closest("[data-ai-model-select]");
-        if (!select) return;
-        saveAiFeedbackModel(select.value);
-        showToast(`${aiFeedbackModelLabel(select.value)} 모델을 선택했습니다.`);
-      });
       document.addEventListener("keydown", event => {
         const metricCard = event.target.closest(".metric-card[data-quick-type], .metric-card[data-record-id]");
         if (!metricCard || !["Enter", " "].includes(event.key)) return;
@@ -5146,6 +5318,7 @@
       window.addEventListener("popstate", handleAppPopState);
       setupSheetDismiss({ sheetSelector: "#recordSheet", onDismiss: () => closeSheet() });
       setupSheetDismiss({ sheetSelector: "#scoreSheet", onDismiss: () => closeScoreSheet() });
+      setupSheetDismiss({ sheetSelector: "#aiModelSheet", onDismiss: () => closeAiModelSheet() });
     }
 
     async function boot() {
