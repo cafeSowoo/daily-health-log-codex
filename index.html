@@ -4519,6 +4519,18 @@
           closeScoreSheet();
           return;
         }
+        if (event.target.closest("[data-close-ai-model-sheet]")) {
+          closeAiModelSheet();
+          return;
+        }
+        const aiModelChoice = event.target.closest("[data-ai-model-choice]");
+        if (aiModelChoice) {
+          saveAiFeedbackModel(aiModelChoice.dataset.aiModelChoice);
+          renderHomeMemoCard();
+          closeAiModelSheet();
+          showToast(`${aiFeedbackModelLabel(aiModelChoice.dataset.aiModelChoice)} 모델을 선택했습니다.`);
+          return;
+        }
         return;
       }
 
@@ -4581,14 +4593,6 @@
       }
       if (event.target.closest("[data-close-ai-model-sheet]")) {
         closeAiModelSheet();
-        return;
-      }
-      const aiModelChoice = event.target.closest("[data-ai-model-choice]");
-      if (aiModelChoice) {
-        saveAiFeedbackModel(aiModelChoice.dataset.aiModelChoice);
-        renderHomeMemoCard();
-        closeAiModelSheet();
-        showToast(`${aiFeedbackModelLabel(aiModelChoice.dataset.aiModelChoice)} 모델을 선택했습니다.`);
         return;
       }
       const deleteFeedbackButton = event.target.closest("[data-delete-feedback]") || closestFromPoint("[data-delete-feedback]", event.clientX, event.clientY);
