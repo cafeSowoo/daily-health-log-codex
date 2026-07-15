@@ -2628,6 +2628,14 @@
         (!payload.exerciseType && !Number(payload.durationMinutes || 0) && !payload.intensity);
     }
 
+    function isNoWeightPayload(payload = {}) {
+      return Boolean(payload.noWeight) || !Number(payload.weightKg || 0);
+    }
+
+    function isNoOrganizePayload(payload = {}) {
+      return Boolean(payload.noOrganize) || !Number(payload.summaryMinutes || 0);
+    }
+
     function exerciseIntensityToneLevel(value) {
       return { "낮음": 1, "보통": 3, "높음": 5 }[value] || 0;
     }
@@ -2846,12 +2854,16 @@
           p.memo || ""
         ].filter(Boolean).join(" · ");
       }
-      if (record.type === "weight") return [p.weightKg ? `${p.weightKg}kg` : "무게", p.memo || ""].filter(Boolean).join(" · ");
+      if (record.type === "weight") {
+        if (isNoWeightPayload(p)) return ["🚫 무게 기록 없음", p.memo || ""].filter(Boolean).join(" · ");
+        return [`${p.weightKg}kg`, p.memo || ""].filter(Boolean).join(" · ");
+      }
       if (record.type === "reading") {
         if (isNoReadingPayload(p)) return ["📚 독서안함", p.memo || ""].filter(Boolean).join(" · ");
         return [p.bookTitle || "", `오늘 ${readingPageCount(p)}p`, `오늘 ${p.todayMinutes || 0}분`, p.memo || ""].filter(Boolean).join(" · ");
       }
       if (record.type === "organize") {
+        if (isNoOrganizePayload(p)) return ["🚫 정리 기록 없음", p.memo || ""].filter(Boolean).join(" · ");
         return [p.summaryMinutes ? `${p.summaryMinutes}분` : "", p.memo || ""].filter(Boolean).join(" · ");
       }
       return "";
@@ -2923,7 +2935,8 @@
         return fragments.length ? { fragments, empty: false } : { text: "마음 기록 있음", empty: false };
       }
       if (type === "weight") {
-        return { text: p.weightKg ? `⚖️ ${p.weightKg}kg` : "무게 기록 있음", empty: false };
+        if (isNoWeightPayload(p)) return { text: "🚫 무게 기록 없음", empty: false };
+        return { text: `⚖️ ${p.weightKg}kg`, empty: false };
       }
       if (type === "reading") {
         if (isNoReadingPayload(p)) return { text: "📚 독서안함", empty: false };
@@ -2937,10 +2950,11 @@
         };
       }
       if (type === "organize") {
+        if (isNoOrganizePayload(p)) return { text: "🚫 정리 기록 없음", empty: false };
         const fragments = [
           p.summaryMinutes ? { kind: "text", text: `⏱️ ${p.summaryMinutes}분` } : null
         ].filter(Boolean);
-        return fragments.length ? { fragments, empty: false } : { text: "정리 기록 있음", empty: false };
+        return { fragments, empty: false };
       }
       return { text: "기록 있음", empty: false };
     }
@@ -3452,12 +3466,16 @@
       if (record.type === "meal") return [["점심", mealAmountLabel(p.lunchAmount)], ["저녁", mealAmountLabel(p.dinnerAmount)], ["메모", p.memo]];
       if (record.type === "alcohol") return [["음주", alcoholLabel(p)], ["주종", p.drinkType], ["메모", p.memo]];
       if (record.type === "mood") return [["마음", p.level ? `${moodLabel(p.level) || p.level} / 5` : ""], ["업무 컨디션", p.workLevel ? `${moodLabel(p.workLevel) || p.workLevel} / 5` : ""], ["메모", p.memo]];
-      if (record.type === "weight") return [["무게", p.weightKg ? `${p.weightKg}kg` : ""], ["메모", p.memo]];
+      if (record.type === "weight") {
+        if (isNoWeightPayload(p)) return [["상태", "🚫 무게 기록 없음"], ["메모", p.memo]];
+        return [["무게", `${p.weightKg}kg`], ["메모", p.memo]];
+      }
       if (record.type === "reading") {
         if (isNoReadingPayload(p)) return [["상태", "📚 독서안함"], ["메모", p.memo]];
         return [["책 제목", p.bookTitle], ["시작 페이지", p.startPage ? `${p.startPage}p` : ""], ["종료 페이지", p.endPage ? `${p.endPage}p` : ""], ["읽은 페이지", readingPageCount(p) ? `${readingPageCount(p)}p` : ""], ["오늘 독서 시간", p.todayMinutes ? `${p.todayMinutes}분` : ""], ["메모", p.memo]];
       }
       if (record.type === "organize") {
+        if (isNoOrganizePayload(p)) return [["상태", "🚫 정리 기록 없음"], ["메모", p.memo]];
         return [["정리 시간", p.summaryMinutes ? `${p.summaryMinutes}분` : ""], ["메모", p.memo]];
       }
       if (record.type === "memo") return [["메모", p.memo]];
@@ -4691,14 +4709,20 @@
         return { drinkLevel, didDrink: drinkLevel === "none" ? "no" : "yes", drinkType, memo: get("memo") };
       }
       if (type === "mood") return { level: get("level"), workLevel: get("workLevel"), memo: get("memo") };
-      if (type === "weight") return { weightKg: number("weightKg"), memo: get("memo") };
+      if (type === "weight") {
+        const weightKg = number("weightKg");
+        return { weightKg, noWeight: !weightKg, memo: get("memo") };
+      }
       if (type === "reading") {
         const startPage = number("startPage");
         const endPage = number("endPage");
         const todayPages = readingPageCount({ startPage, endPage });
         return { bookTitle: get("bookTitle"), startPage, endPage, todayPages, todayMinutes: number("todayMinutes"), noReading: todayPages === 0, memo: get("memo") };
       }
-      if (type === "organize") return { summaryMinutes: number("summaryMinutes"), memo: get("memo") };
+      if (type === "organize") {
+        const summaryMinutes = number("summaryMinutes");
+        return { summaryMinutes, noOrganize: !summaryMinutes, memo: get("memo") };
+      }
       if (type === "memo") return { memo: get("memo") };
       return {};
     }
